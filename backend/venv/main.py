@@ -127,7 +127,7 @@ def get_my_identity(request: Request):
 @app.post("/upload")
 async def upload_image(
     file: UploadFile = File(...), 
-    user: str = Form(...),
+    author: str = Form(...),   # <--- CHANGED: Matches frontend 'formData.append("author", ...)'
     caption: str = Form(None),
     secret: str = Form(None)
 ):
@@ -159,7 +159,7 @@ async def upload_image(
         )
 
         image_payload = {
-            "username": user,
+            "username": author,  # <--- MAPPED: 'author' input -> 'username' DB column
             "storage_path": active_path,
             "original_storage_path": original_path,
             "image_filename": filename_base,
@@ -169,7 +169,7 @@ async def upload_image(
             "has_secret": True if secret else False 
         }
         
-        print("Creating image record...")
+        print(f"Creating image record for user: {author}...")
         response = db.supabase.table("images").insert(image_payload).execute()
         
         if not response.data:

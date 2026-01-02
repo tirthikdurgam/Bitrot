@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
 import { LogOut, User as UserIcon, Mail, Shield, Loader2, X } from "lucide-react"
 import Link from "next/link"
+import { logout } from "../auth/logout/actions"
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
@@ -33,16 +34,13 @@ export default function ProfilePage() {
 
     checkUser()
 
-    // 2. Real-time Listener
+    // 2. Real-time Listener (Optional for logout now, but good for keeping state synced)
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser(session.user)
         setLoading(false)
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-        router.refresh()
-        router.push("/") 
-      }
+      } 
+      // We don't need the SIGNED_OUT check here anymore because the server redirects us.
     })
 
     return () => {
@@ -57,18 +55,6 @@ export default function ProfilePage() {
     if (!name || !domain) return email
     const visiblePart = name.slice(0, 3)
     return `${visiblePart}*****@${domain}`
-  }
-
-  // ROBUST LOGOUT HANDLER
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error("Logout network error (ignoring):", error)
-    } finally {
-      router.refresh()
-      router.push("/") 
-    }
   }
 
   if (loading) {
@@ -90,7 +76,7 @@ export default function ProfilePage() {
         {/* Profile Card */}
         <div className="w-full max-w-md bg-black/40 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl relative z-10 animate-in fade-in zoom-in duration-300">
             
-            {/* NEW: Back / Close Button */}
+            {/* Back / Close Button */}
             <Link 
                 href="/" 
                 className="absolute top-5 right-5 text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
@@ -142,14 +128,16 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* Sign Out Button */}
-            <button 
-                onClick={handleSignOut}
-                className="w-full py-4 flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-all font-bold text-xs uppercase tracking-widest font-montserrat"
-            >
-                <LogOut size={16} />
-                <span>Terminate Session</span>
-            </button>
+            {/* SERVER ACTION LOGOUT BUTTON */}
+            <form action={logout}>
+                <button 
+                    type="submit"
+                    className="w-full py-4 flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-all font-bold text-xs uppercase tracking-widest font-montserrat"
+                >
+                    <LogOut size={16} />
+                    <span>Terminate Session</span>
+                </button>
+            </form>
 
         </div>
     </div>

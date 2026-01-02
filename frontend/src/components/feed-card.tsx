@@ -124,11 +124,6 @@ export default function FeedCard({
 
       </div>
 
-      {/* INTEGRITY BAR */}
-      <div className="p-4 bg-black/20 border-t border-white/10">
-        <DecayProgressBar current={bitIntegrity} />
-      </div>
-
       {/* FOOTER */}
       <div className="p-4 space-y-3">
         <div className="flex items-center justify-between pt-2 border-t border-white/10">

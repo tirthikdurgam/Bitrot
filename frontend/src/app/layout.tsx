@@ -17,8 +17,8 @@ const inter = Inter({
 
 // 2. Site Metadata
 export const metadata: Metadata = {
-  title: "knixcs", 
-  description: "Digital artifacts destined to fade. A study in impermanence.",
+  title: "BitRot", 
+  description: "",
 };
 
 export default function RootLayout({

@@ -21,7 +21,7 @@ export default function AboutPage() {
             </h1>
             <p className="font-montserrat text-xl text-white/80 leading-relaxed">
                 The internet promised us permanence. It was a lie.<br />
-                BitLoss introduces <span className="text-white font-bold">digital entropy</span> to the web.
+                BitRot introduces <span className="text-white font-bold">digital entropy</span> to the web.
             </p>
         </motion.div>
 

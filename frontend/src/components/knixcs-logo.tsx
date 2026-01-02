@@ -10,7 +10,7 @@ interface LogoProps {
 
 export default function KnixcsLogo({ 
   className = "", 
-  width = 140 
+  width = 200 
 }: LogoProps) {
   return (
     <Link 
@@ -19,10 +19,10 @@ export default function KnixcsLogo({
     >
       <div className="relative transition-all duration-300 group-hover:scale-105 group-hover:brightness-125 drop-shadow-2xl">
         <Image 
-          src="/knixcs-logo-v2.png" 
+          src="/image.png" 
           alt="Knixcs" 
           width={width} 
-          height={60}
+          height={70}
           className="object-contain w-auto h-auto"
           priority 
         />

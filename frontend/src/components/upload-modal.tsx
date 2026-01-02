@@ -2,8 +2,9 @@
 
 import { useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Upload, Loader2, Image as ImageIcon, Type, Lock, CloudUpload } from "lucide-react"
+import { X, Upload, Loader2, CloudUpload, Type, Lock } from "lucide-react"
 import Image from "next/image"
+import { createClient } from "@/utils/supabase/client" // <--- IMPORT ADDED
 
 // Utility to hide scrollbar
 const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
@@ -45,9 +46,24 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     if (!file) return
 
     setIsUploading(true)
+    
+    // --- 1. FETCH REAL USERNAME START ---
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    let username = "Anonymous_Creator"
+    
+    if (user) {
+        // Use Full Name if available, otherwise use Email prefix
+        username = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
+        // Replace spaces with underscores for a cleaner handle
+        username = username.replace(/\s+/g, '_')
+    }
+    // --- FETCH REAL USERNAME END ---
+
     const formData = new FormData()
     formData.append("file", file)
-    formData.append("user", "Anonymous_Creator") 
+    formData.append("author", username) // <--- CHANGED from 'user' to 'author' (Real Name)
     formData.append("caption", caption)
     
     if (secret.trim()) {

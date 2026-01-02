@@ -12,7 +12,7 @@ export default function ArchivePage() {
   useEffect(() => {
     const fetchArchive = async () => {
       try {
-        const res = await fetch("http://localhost:8000/archive", { cache: 'no-store' })
+        const res = await fetch("http://127.0.0.1:8000/archive", { cache: 'no-store' })
         const rawData = await res.json()
         
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
