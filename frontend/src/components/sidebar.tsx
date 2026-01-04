@@ -4,6 +4,9 @@ import { motion } from "framer-motion"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 
+// UTILITY: Hides scrollbar but allows scrolling
+const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+
 export default function Sidebar() {
   const [graveyard, setGraveyard] = useState<any[]>([])
   const [trends, setTrends] = useState<any[]>([])
@@ -13,14 +16,11 @@ export default function Sidebar() {
       try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
-        // 1. UPDATED: Get Dead Posts via Proxy
-        // Calls /api/graveyard -> Next.js -> Python Backend
+        // 1. Get Dead Posts
         const graveRes = await fetch("/api/graveyard")
-        
         if (graveRes.ok) {
             const graveData = await graveRes.json()
             if (Array.isArray(graveData)) {
-                // Transform the raw data into usable URLs
                 const formattedGraveyard = graveData.map((item: any) => ({
                     ...item,
                     fullUrl: `${supabaseUrl}/storage/v1/object/public/bitloss-images/${item.storage_path}`
@@ -29,10 +29,8 @@ export default function Sidebar() {
             }
         }
 
-        // 2. UPDATED: Get Trending Posts via Proxy
-        // Calls /api/trending -> Next.js -> Python Backend
+        // 2. Get Trending Posts
         const trendRes = await fetch("/api/trending")
-        
         if (trendRes.ok) {
             const trendData = await trendRes.json()
             if (Array.isArray(trendData)) {
@@ -45,14 +43,11 @@ export default function Sidebar() {
     }
 
     fetchData()
-    // Refresh every 5 seconds to keep sidebar alive
     const interval = setInterval(fetchData, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  // Helper to safely format the percentage
   const formatIntegrity = (value: any) => {
-    // If value is null, undefined, or not a number, return 100
     if (value === null || value === undefined || isNaN(value)) {
         return 100
     }
@@ -60,12 +55,13 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="hidden lg:block w-80 border-l border-white/10 bg-black/20 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+    // UPDATED: Added scrollbarHiddenClass here
+    <div className={`hidden lg:block w-80 border-l border-white/10 bg-black/20 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto ${scrollbarHiddenClass}`}>
       <div className="p-6 space-y-8">
         
         {/* --- RECYCLE BIN SECTION --- */}
         <div>
-          <h3 className="font-courier text-xs font-bold tracking-widest text-white/70 mb-4">&gt; THE RECYCLE BIN</h3>
+          <h3 className="font-courier text-xs font-bold tracking-widest text-white/70 mb-4">THE RECYCLE BIN</h3>
           
           {(!graveyard || graveyard.length === 0) ? (
             <div className="text-xs text-white/30 font-montserrat italic">No dead artifacts yet...</div>
@@ -106,7 +102,7 @@ export default function Sidebar() {
 
         {/* --- TRENDING SECTION --- */}
         <div>
-          <h3 className="font-courier text-xs font-bold tracking-widest text-white/70 mb-4">&gt; DECAYING TRENDS</h3>
+          <h3 className="font-courier text-xs font-bold tracking-widest text-white/70 mb-4">DECAYING TRENDS</h3>
           <div className="space-y-3">
             {(!trends || trends.length === 0) ? (
               <div className="text-xs text-white/30 font-montserrat italic">System stable. No active decay.</div>
@@ -126,7 +122,6 @@ export default function Sidebar() {
                   <div className="mt-2 pt-2 border-t border-white/10 flex justify-between">
                     <span className="text-xs font-courier text-[#FF0000]">Rate: {trend.decay_rate}</span>
                     
-                    {/* Uses helper function to avoid NaN */}
                     <span className="text-xs font-courier text-white/50">
                         {formatIntegrity(trend.current_quality || trend.bitIntegrity)}%
                     </span>

@@ -1,66 +1,93 @@
 import os
+import random
+from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
-import bitrot  # Importing your custom library
+import bitrot
 
-# 1. Load Environment Variables
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-# 2. Initialize Supabase Client
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
-        print(f"Warning: Could not connect to Supabase in decay.py: {e}")
+        print(f"Warning: Could not connect to Supabase: {e}")
 
-# --- FUNCTION 1: The Wrapper (Uses your BitRot Library) ---
+def calculate_decay(image_row, killer_name="Anonymous"):
+    """
+    Calculates integrity. If 0%, marks as destroyed.
+    Cleanup is handled asynchronously by the reaper service.
+    """
+    current_val = image_row.get('bit_integrity')
+    if current_val is None:
+        current_val = image_row.get('current_quality', 100.0)
+        
+    current_integrity = float(current_val)
+    
+    # Decay rate: 0.05% to 0.1% per view
+    decay_amount = random.uniform(0.05, 0.1) 
+    new_integrity = max(0.0, current_integrity - decay_amount)
+
+    updates = {
+        "bit_integrity": new_integrity,
+        "current_quality": new_integrity, 
+        "generations": (image_row.get('generations') or 0) + 1,
+        "last_viewed": datetime.utcnow().isoformat()
+    }
+
+    if new_integrity <= 0 and current_integrity > 0:
+        print(f"IMAGE DESTROYED by {killer_name}")
+        updates["killed_by"] = killer_name
+        updates["is_destroyed"] = True 
+
+    return updates
+
 def inflict_bitloss(input_path, output_path, health):
-    """
-    Decays a local image using the custom 'bitrot' library.
-    """
     try:
-        # Convert health (0-100) to integrity (0.0 - 1.0)
-        # We clamp it to 0.01 to prevent the library from crashing or doing nothing
         integrity_val = max(0.01, min(1.0, float(health) / 100.0))
-        
-        # Use the library to handle the actual image processing
         bitrot.decay_file(input_path, output_path, integrity=integrity_val)
-        
-        print(f"   -> Decayed Local File: Health {health}% -> Integrity {integrity_val:.2f}")
+        print(f"Visual Decay Applied: {health:.2f}%")
         return True
-
     except Exception as e:
-        print(f"   -> Error in decay script: {e}")
+        print(f"Visual Decay Failed: {e}")
         return False
 
-# --- FUNCTION 2: The Garbage Collector ---
-def cleanup_dead_artifact(active_path):
-    """
-    Deletes the corrupted file from Supabase 'active' folder 
-    once it hits 0% integrity to save storage space.
-    """
-    if not supabase:
-        print("   -> Error: Supabase client not initialized. Cannot delete file.")
-        return False
+def process_remote_decay(storage_path, integrity):
+    if not supabase: return
 
     try:
-        print(f"   -> 🗑️ Deleting dead artifact from storage: {active_path}")
+        if "active/" not in storage_path:
+            return
+
+        print(f"Processing Remote Decay: {storage_path} @ {integrity:.2f}%")
         
-        # Call Supabase Storage API to remove the file
-        response = supabase.storage.from_("bitloss-images").remove([active_path])
+        filename = storage_path.split("/")[-1]
+        local_input = f"temp_in_{filename}"
+        local_output = f"temp_out_{filename}"
+
+        with open(local_input, "wb") as f:
+            res = supabase.storage.from_("bitloss-images").download(storage_path)
+            f.write(res)
+
+        inflict_bitloss(local_input, local_output, integrity)
+
+        with open(local_output, "rb") as f:
+            supabase.storage.from_("bitloss-images").upload(
+                storage_path,
+                f,
+                file_options={"upsert": "true", "content-type": "image/png"}
+            )
         
-        # Check if response indicates success
-        if response:
-            print("   -> Successfully deleted from cloud.")
-            return True
-        else:
-            print("   -> Warning: File might not exist or deletion failed.")
-            return False
-            
+        if os.path.exists(local_input): os.remove(local_input)
+        if os.path.exists(local_output): os.remove(local_output)
+        
+        print("Remote Decay Complete")
+
     except Exception as e:
-        print(f"   -> Error deleting dead file: {e}")
-        return False
+        print(f"Remote Decay Failed: {e}")
+        if os.path.exists(local_input): os.remove(local_input)
+        if os.path.exists(local_output): os.remove(local_output)

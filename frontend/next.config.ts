@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 1. Image Configuration (Keep your existing settings)
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        // Your specific Supabase project ID
         hostname: 'iqtidkshavbicaecmxtd.supabase.co', 
         port: '',
         pathname: '/storage/v1/object/public/**',
@@ -23,15 +21,20 @@ const nextConfig: NextConfig = {
         port: '8000',
         pathname: '/**',
       },
+      // --- UPDATED: Allow ALL Google Avatar Domains ---
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com', 
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
-
-  // 2. The Proxy (Fixes "Failed to Fetch" / CORS errors)
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8000/:path*', // Proxy to Python Backend
+        destination: 'http://127.0.0.1:8000/:path*',
       },
     ]
   },

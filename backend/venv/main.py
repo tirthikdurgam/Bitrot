@@ -1,22 +1,27 @@
-import uuid
-import time
-import random
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
-import shutil
 import asyncio
-import bitrot
-# CORRECT IMPORT: Importing the function directly
-from cleanup import archive_dead_images 
-import database as db
-import utils
-from ghosttag import GhostTag
-from dotenv import load_dotenv
-import httpx
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
+import random
+import shutil
+import time
+import uuid
+
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import httpx
+
+# Custom/Third-Party Libraries
+import bitrot
+from ghosttag import GhostTag
+
+# Local Application Imports
+from cleanup import archive_dead_images
+import database as db
+from decay import calculate_decay, inflict_bitloss, process_remote_decay
+import utils
 
 # --- 1. ROBUST ENV LOADING ---
 env_path = Path(__file__).parent / ".env"
@@ -127,7 +132,7 @@ def get_my_identity(request: Request):
 @app.post("/upload")
 async def upload_image(
     file: UploadFile = File(...), 
-    author: str = Form(...),   # <--- CHANGED: Matches frontend 'formData.append("author", ...)'
+    author: str = Form(...),   # <--- Matches frontend 'formData.append("author", ...)'
     caption: str = Form(None),
     secret: str = Form(None)
 ):
@@ -135,14 +140,20 @@ async def upload_image(
         raise HTTPException(status_code=503, detail="Database not connected")
 
     try:
+        # 1. Read file bytes
         file_bytes = await file.read()
         
+        # 2. Determine Extension & Filename
+        # If there is a secret, we force PNG (lossless) to protect the hidden data
         original_ext = file.filename.split('.')[-1]
         file_ext = "png" if secret else original_ext 
-        filename_base = f"{int(time.time())}_{random.randint(100, 999)}.{file_ext}"
+        
+        unique_id = f"{int(time.time())}_{random.randint(100, 999)}"
+        filename = f"{unique_id}.{file_ext}"
 
-        active_path = f"active/{filename_base}"
-        original_path = f"originals/{filename_base}"
+        # 3. Define Paths
+        active_path = f"active/{filename}"      # The Victim
+        original_path = f"originals/{filename}" # The Memory
 
         print(f"Uploading Active Copy: {active_path}...")
         db.supabase.storage.from_("bitloss-images").upload(
@@ -158,15 +169,16 @@ async def upload_image(
             file_options={"content-type": f"image/{file_ext}"}
         )
 
+        # 4. Create Database Record
         image_payload = {
-            "username": author,  # <--- MAPPED: 'author' input -> 'username' DB column
-            "storage_path": active_path,
-            "original_storage_path": original_path,
-            "image_filename": filename_base,
+            "username": author,  # <--- Mapped: form 'author' -> db 'username'
+            "storage_path": active_path, # Feed loads the ACTIVE (decaying) path
             "bit_integrity": 100.0,
             "current_quality": 100.0,
             "caption": caption if caption else "",
-            "has_secret": True if secret else False 
+            "has_secret": True if secret else False,
+            "is_destroyed": False,
+            "is_archived": False
         }
         
         print(f"Creating image record for user: {author}...")
@@ -177,8 +189,13 @@ async def upload_image(
             
         new_image_id = response.data[0]['id']
 
+        # 5. Handle Secret (if present)
         if secret:
-            secret_payload = {"image_id": new_image_id, "secret_text": secret}
+            print(f"Encrypting secret for image {new_image_id}...")
+            secret_payload = {
+                "image_id": new_image_id, 
+                "secret_text": secret
+            }
             db.supabase.table("image_secrets").insert(secret_payload).execute()
 
         return {"status": "success", "id": new_image_id}
@@ -188,29 +205,32 @@ async def upload_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/feed")
-def get_feed(request: Request, background_tasks: BackgroundTasks):
+def get_feed(request: Request, background_tasks: BackgroundTasks, x_user_name: str = Header("Anonymous")): # <--- Capture User Name
     if not db.supabase: return []
     
     posts = db.get_live_posts() 
     results = []
 
     for post in posts:
-        current_integrity = post.get("current_quality", 100.0)
-        new_integrity = max(0, float(current_integrity) - 0.1)
+        # Use our smart decay function instead of hardcoded math
+        # This handles the integrity drop AND records the killer if it hits 0%
+        updates = calculate_decay(post, killer_name=x_user_name)
         
-        new_generations = (post.get("generations") or 0) + 1
-        new_witnesses = (post.get("witnesses") or 0) + 1
+        # Extract new values for response
+        new_integrity = updates["bit_integrity"]
+        new_generations = updates["generations"]
         
+        # Update Database
         try:
-            update_query = db.supabase.table("images").update({
-                "current_quality": new_integrity,
-                "generations": new_generations,
-                "witnesses": new_witnesses
-            }).eq("id", post["id"])
+            # We add 'witnesses' increment here manually since decay.py focuses on integrity
+            updates["witnesses"] = (post.get("witnesses") or 0) + 1
+            
+            update_query = db.supabase.table("images").update(updates).eq("id", post["id"])
             safe_db_execute(update_query)
         except Exception as e:
             print(f"DB UPDATE ERROR: {e}")
 
+        # Secret Purge Logic (Keep existing)
         if new_integrity < 80.0:
             try:
                 if post.get("has_secret"):
@@ -219,6 +239,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             except Exception as e:
                 pass 
 
+        # Visual Decay Processing (Keep existing)
         if post.get("storage_path") and new_integrity < 100 and "active/" in post.get("storage_path", ""):
             background_tasks.add_task(
                 process_remote_decay, 
@@ -226,6 +247,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                 new_integrity
             )
 
+        # Comment Fetching (Keep existing)
         processed_comments = []
         try:
             comment_query = db.supabase.table("comments")\
@@ -249,8 +271,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             processed_comments = [] 
 
         storage_path = post.get("storage_path")
-        # FIX: Ensure we don't send "None" if URL is missing
-        base_url = SUPABASE_URL if SUPABASE_URL else "https://PROJECT_ID.supabase.co"
+        base_url = SUPABASE_URL if SUPABASE_URL else "https://YOUR_PROJECT.supabase.co"
         image_url = f"{base_url}/storage/v1/object/public/bitloss-images/{storage_path}"
 
         results.append({
@@ -260,7 +281,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             "image": image_url, 
             "bitIntegrity": new_integrity, 
             "generations": new_generations,
-            "witnesses": new_witnesses,
+            "witnesses": updates["witnesses"],
             "caption": post.get("caption", ""),
             "has_secret": post.get("has_secret", False),
             "comments": processed_comments 

@@ -16,23 +16,34 @@ export default function DecipherPage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     const fetchSecret = async () => {
-      // 1. Force a short delay for dramatic effect (optional)
+      // 1. Force a short delay for dramatic effect
       await new Promise(r => setTimeout(r, 1500))
 
       try {
-        const res = await fetch(`http://localhost:8000/reveal/${id}`, { 
+        // --- FIX: USE PROXY URL (/api/...) ---
+        // Old: http://localhost:8000/reveal/${id} (Blocked by CORS)
+        // New: /api/reveal/${id} (Allowed)
+        const res = await fetch(`/api/reveal/${id}`, { 
             cache: 'no-store',
             headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
         })
+        
+        // Check if the response is actually JSON before parsing
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("Invalid Server Response");
+        }
+
         const data = await res.json()
 
-        if (data.status === "success") {
+        if (res.ok && data.status === "success") {
             setSecret(data.message)
         } else {
-            // FIX: Show the REAL error message from the backend
-            setError(data.message || "UNKNOWN_ERROR") 
+            // Show the REAL error message from the backend
+            setError(data.message || data.detail || "DECRYPTION_DENIED") 
         }
       } catch (err: any) {
+        console.error("Decryption Error:", err)
         setError("CONNECTION_LOST")
       } finally {
         setLoading(false)
