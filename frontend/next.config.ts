@@ -5,13 +5,17 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'iqtidkshavbicaecmxtd.supabase.co', // Allow ALL paths from your Supabase
+        hostname: 'iqtidkshavbicaecmxtd.supabase.co', // Your Supabase Storage
       },
       {
         protocol: 'https',
-        hostname: '*.googleusercontent.com', // Allow Google Auth images
+        hostname: 'bitrot.onrender.com', // <--- ADDED: Your Render Backend
       },
-      // Allow Localhost for testing
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com', // Google Auth avatars
+      },
+      // Local Development
       {
         protocol: 'http',
         hostname: 'localhost',
@@ -23,7 +27,9 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    // Ensure the env var is read as a string, with a fallback
+    // Dynamic Backend URL:
+    // 1. If we set NEXT_PUBLIC_BACKEND_URL in Vercel, it uses that.
+    // 2. Otherwise (on your laptop), it falls back to http://127.0.0.1:8000
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
     
     return [
