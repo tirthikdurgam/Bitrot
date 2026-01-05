@@ -17,6 +17,7 @@ if not url or not key:
     print("WARNING: Supabase credentials missing in backend/.env")
 else:
     try:
+        # --- FIXED: No proxy argument here ---
         supabase = create_client(url, key)
         print(f"Database Connected (Admin Mode: {bool(service_key)})")
     except Exception as e:
@@ -74,7 +75,7 @@ def get_user_loot(username):
     except:
         return []
 
-# --- POST/IMAGE FUNCTIONS (UPDATED) ---
+# --- POST/IMAGE FUNCTIONS ---
 
 def create_post(username, image_filename, caption="", secret_text=None):
     """
