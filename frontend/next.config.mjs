@@ -1,21 +1,23 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
+      // 1. Trust Supabase (Where your images actually live)
       {
         protocol: 'https',
-        hostname: 'iqtidkshavbicaecmxtd.supabase.co', // Your Supabase Storage
+        hostname: 'iqtidkshavbicaecmxtd.supabase.co',
       },
+      // 2. Trust Render (Your Backend)
       {
         protocol: 'https',
-        hostname: 'bitrot.onrender.com', // <--- ADDED: Your Render Backend
+        hostname: 'bitrot.onrender.com',
       },
+      // 3. Trust Google (For Login Avatars)
       {
         protocol: 'https',
-        hostname: '*.googleusercontent.com', // Google Auth avatars
+        hostname: '*.googleusercontent.com',
       },
-      // Local Development
+      // 4. Trust Localhost (For when you code on your laptop)
       {
         protocol: 'http',
         hostname: 'localhost',
@@ -27,11 +29,8 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    // Dynamic Backend URL:
-    // 1. If we set NEXT_PUBLIC_BACKEND_URL in Vercel, it uses that.
-    // 2. Otherwise (on your laptop), it falls back to http://127.0.0.1:8000
+    // This connects the Frontend to the Backend dynamically
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
-    
     return [
       {
         source: '/api/:path*',
