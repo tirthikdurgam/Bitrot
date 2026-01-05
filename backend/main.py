@@ -77,10 +77,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # --- CORS SETUP ---
+# --- CORS SETUP ---
+origins = [
+    "http://localhost:3000",        # Local React
+    "http://127.0.0.1:3000",        # Local React (alternative IP)
+    "https://bitrotdev.vercel.app", # Vercel Production URL
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*", 
-    allow_credentials=True,
+    allow_origins=origins,          # Use the specific list
+    allow_credentials=True,         # Now this is valid and safe!
     allow_methods=["*"],
     allow_headers=["*"],
 )
