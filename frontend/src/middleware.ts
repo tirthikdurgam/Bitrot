@@ -7,11 +7,13 @@ export async function middleware(request: NextRequest) {
       headers: request.headers,
     },
   })
+
+  // --- UPDATED CSP HEADER ---
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com;
     style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://*.googleusercontent.com https://avatars.githubusercontent.com https://*.supabase.co;
+    img-src 'self' blob: data: https://*.googleusercontent.com https://avatars.githubusercontent.com https://*.supabase.co https://bitrot.onrender.com;
     font-src 'self';
     object-src 'none';
     base-uri 'self';
@@ -19,7 +21,7 @@ export async function middleware(request: NextRequest) {
     frame-ancestors 'none';
     block-all-mixed-content;
     upgrade-insecure-requests;
-    connect-src 'self' http://127.0.0.1:8000 https://*.supabase.co https://*.google.com;
+    connect-src 'self' http://127.0.0.1:8000 https://*.supabase.co https://*.google.com https://bitrot.onrender.com;
   `
   
   response.headers.set('Content-Security-Policy', cspHeader.replace(/\s{2,}/g, ' ').trim())

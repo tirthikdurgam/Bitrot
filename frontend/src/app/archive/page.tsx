@@ -9,10 +9,20 @@ export default function ArchivePage() {
   const [archiveItems, setArchiveItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  // 1. DYNAMIC URL SELECTION
+  // If the Env Var is set (Vercel), use it. Otherwise, fallback to localhost.
+  const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"
+
   useEffect(() => {
     const fetchArchive = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/archive", { cache: 'no-store' })
+        console.log(`Fetching archive from: ${API_BASE}/archive`) // Debug log
+        
+        // 2. USE THE DYNAMIC URL HERE
+        const res = await fetch(`${API_BASE}/archive`, { cache: 'no-store' })
+        
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
+        
         const rawData = await res.json()
         
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -22,7 +32,7 @@ export default function ArchivePage() {
           ...item,
           fullUrl: item.storage_path 
             ? `${supabaseUrl}/storage/v1/object/public/bitloss-images/${item.storage_path}`
-            : item.image // Fallback
+            : item.image 
         }))
 
         setArchiveItems(formattedData)
@@ -34,7 +44,7 @@ export default function ArchivePage() {
     }
 
     fetchArchive()
-  }, [])
+  }, []) // Empty dependency array is correct
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
@@ -62,7 +72,6 @@ export default function ArchivePage() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
-                // ===> RECYCLE BIN STYLING APPLIED HERE <===
                 className="aspect-square rounded-lg overflow-hidden border border-white/10 hover:border-[#FF0000] transition-all cursor-pointer group relative bg-black shadow-lg"
                 >
                 <Image
@@ -73,7 +82,6 @@ export default function ArchivePage() {
                     unoptimized
                 />
 
-                {/* Glitch Overlay Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
                     <span className="text-sm font-courier font-bold text-[#FF0000] opacity-0 group-hover:opacity-100 transition-opacity tracking-[0.2em] bg-black/80 px-2 py-1 border border-red-500/50">
                     CORRUPTED
@@ -83,7 +91,6 @@ export default function ArchivePage() {
                     </span>
                 </div>
 
-                {/* Dead indicator bottom bar */}
                 <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-2 text-center border-t border-white/10 group-hover:border-[#FF0000]/50 transition-colors">
                     <div className="flex justify-between items-center px-2">
                         <span className="text-[10px] font-courier font-bold text-[#FF0000]">INTEGRITY: 0%</span>
