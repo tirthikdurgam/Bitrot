@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/client" // Import Supabase
 import UploadModal from "./upload-modal"
-import KnixcsLogo from "./knixcs-logo"
+import KnixcsLogo from "./bitloss-logo"
 
 export default function Navbar() {
   const [isUploadOpen, setIsUploadOpen] = useState(false)

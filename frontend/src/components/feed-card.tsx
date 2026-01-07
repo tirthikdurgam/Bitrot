@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Eye, MessageSquare, Lock, Crosshair, Globe, Zap, ShieldAlert } from "lucide-react"
+import { Eye, MessageSquare, Lock, Crosshair, ShieldAlert } from "lucide-react"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
 
@@ -80,7 +80,6 @@ export default function FeedCard({
   const isSecretActive = has_secret && bitIntegrity >= 80
   const secretHandlers = useSecretGate(id, isSecretActive, isHovered)
   
-  // Use 'text-white' for high integrity to look clean, color only for decay
   const integrityColor = isDead ? "text-red-500" : bitIntegrity < 50 ? "text-yellow-400" : "text-white"
 
   const handlePostComment = async (text: string, parentId?: string) => {
@@ -100,7 +99,6 @@ export default function FeedCard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      // BASE FONT: Rajdhani for the technical/squarish look
       className="w-full bg-[#030303] border border-white/15 relative group hover:border-white/40 transition-all duration-300 font-rajdhani"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -116,7 +114,7 @@ export default function FeedCard({
                 <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-white/50 rounded-sm" />
                     <span className="text-[11px] font-bold text-white tracking-[0.15em] uppercase">
-                         {isSecretActive ? "ENCRYPTED_PAYLOAD" : "STANDARD_ASSET"}
+                          {isSecretActive ? "ENCRYPTED_PAYLOAD" : "STANDARD_ASSET"}
                     </span>
                 </div>
                 {isSecretActive && <Lock size={12} className="text-[#00FF41]" />}
@@ -129,7 +127,7 @@ export default function FeedCard({
         </div>
       </div>
 
-      {/* ROW 2: IMAGE VIEWPORT */}
+      {/* ROW 2: IMAGE VIEWPORT (OPTIMIZED) */}
       <div className="relative aspect-square w-full bg-[#050505] border-b border-white/20 overflow-hidden cursor-crosshair group">
         
         {/* Crosshairs */}
@@ -142,9 +140,10 @@ export default function FeedCard({
           src={image} 
           alt={username} 
           fill 
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className={`object-cover transition-all duration-700 ${isDead ? 'grayscale contrast-150 brightness-50' : 'group-hover:scale-[1.02] grayscale hover:grayscale-0'}`}
-          unoptimized 
           {...(isSecretActive ? secretHandlers : {})}
+          // REMOVED: unoptimized={true} -> This enables automatic optimization
         />
 
         {isDead && (
@@ -160,7 +159,7 @@ export default function FeedCard({
       {/* ROW 3: TECHNICAL DATA GRID */}
       <div className="grid grid-cols-12 border-b border-white/20">
          
-         {/* CELL 1: INTEGRITY (Share Tech Mono for Numbers) */}
+         {/* CELL 1: INTEGRITY */}
          <div className="col-span-4 p-2 border-r border-white/20 flex flex-col justify-between bg-white/[0.02]">
              <span className="text-[9px] text-white/40 font-semibold tracking-widest uppercase">Integrity</span>
              <div className="flex items-baseline gap-0.5">
@@ -205,7 +204,7 @@ export default function FeedCard({
              </div>
          </div>
          
-         {/* ID HASH (Share Tech Mono) */}
+         {/* ID HASH */}
          <div className="text-[9px] text-white/20 font-share-tech tracking-wider">
              ID_{id.slice(0,6).toUpperCase()}
          </div>

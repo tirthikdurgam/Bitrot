@@ -3,37 +3,35 @@
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import FeedCard from "./feed-card"
-import { createClient } from "@/utils/supabase/client" // <--- IMPORTED SUPABASE
+import { createClient } from "@/utils/supabase/client"
 
 // UTILITY: Hides scrollbar but allows scrolling
 const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
 
 export default function Feed() {
   const [posts, setPosts] = useState<any[]>([])
-  const supabase = createClient() // <--- INITIALIZED CLIENT
+  const supabase = createClient()
 
   const fetchFeed = async () => {
     try {
-      // 1. CRITICAL: Get the real logged-in user
+      // 1. Get the real logged-in user
       const { data: { user } } = await supabase.auth.getUser()
       
       // 2. Determine the username to send
       let currentUserName = "Anonymous_Observer"
       
       if (user) {
-         // Priority: Metadata Name -> Email -> "Anonymous"
-         // Also replacing spaces with underscores to match your DB style
          const fullName = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous"
          currentUserName = fullName.replace(/\s+/g, '_')
       }
 
-      // 3. Send the request with the REAL user name in headers
+      // 3. Send the request
       const res = await fetch("/api/feed", { 
         cache: 'no-store',
         headers: {
           'Pragma': 'no-cache',
           'Cache-Control': 'no-cache',
-          'x-user-name': currentUserName // <--- The Backend looks for this
+          'x-user-name': currentUserName
         }
       })
       
@@ -42,8 +40,6 @@ export default function Feed() {
       }
 
       const rawData = await res.json()
-      
-      const timestamp = Date.now()
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
       // 4. Format Data
@@ -55,8 +51,7 @@ export default function Feed() {
         return {
           id: row.id,
           username: row.username,
-          // Append timestamp to force browser to re-fetch the decayed image
-          image: `${imageUrl}?t=${timestamp}`,
+          image: `${imageUrl}?t=${row.generations}`,
           bitIntegrity: row.bitIntegrity, 
           generations: row.generations,
           witnesses: row.witnesses,
@@ -75,12 +70,12 @@ export default function Feed() {
   // 5. Live Polling
   useEffect(() => {
     fetchFeed()
+    // Poll every 4 seconds (safe now because images are cached!)
     const interval = setInterval(fetchFeed, 4000)
     return () => clearInterval(interval)
   }, [])
 
   return (
-    // UPDATED: Added scrollbarHiddenClass
     <div className={`flex-1 max-w-2xl mx-auto border-x border-white/10 min-h-screen ${scrollbarHiddenClass}`}>
       <div className="p-6 space-y-6">
         {posts.map((post, index) => (
