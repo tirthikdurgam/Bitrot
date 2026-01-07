@@ -9,17 +9,24 @@ export default function ArchivePage() {
   const [archiveItems, setArchiveItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 1. DYNAMIC URL SELECTION
-  // If the Env Var is set (Vercel), use it. Otherwise, fallback to localhost.
-  const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"
-
+  // FIX 1: REMOVE THE MANUAL URL SELECTION
+  // We don't need API_BASE anymore because we will use the internal "/api" route.
+  
   useEffect(() => {
     const fetchArchive = async () => {
       try {
-        console.log(`Fetching archive from: ${API_BASE}/archive`) // Debug log
+        console.log(`Fetching archive from internal proxy...`) 
         
-        // 2. USE THE DYNAMIC URL HERE
-        const res = await fetch(`${API_BASE}/archive`, { cache: 'no-store' })
+        // FIX 2: USE THE RELATIVE PATH
+        // This hits "https://bitloss.vercel.app/api/archive"
+        // Next.js then invisibly forwards this to Render.
+        // No CORS errors!
+        const res = await fetch("/api/archive", { 
+            cache: 'no-store',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
         
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
         
@@ -44,7 +51,7 @@ export default function ArchivePage() {
     }
 
     fetchArchive()
-  }, []) // Empty dependency array is correct
+  }, []) 
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
@@ -79,7 +86,9 @@ export default function ArchivePage() {
                     alt={`Archived artifact ${item.id}`}
                     fill
                     className="object-cover group-hover:scale-110 transition-transform duration-500 filter grayscale contrast-150 brightness-50 hover:grayscale-0 hover:contrast-100 hover:brightness-100"
-                    unoptimized
+                    // FIX 3: REMOVED unoptimized={true}
+                    // This allows Vercel to compress the images for you = FASTER LOADING
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 />
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
