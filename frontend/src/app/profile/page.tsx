@@ -62,7 +62,6 @@ export default function ProfilePage() {
                 .limit(50)
 
             if (!error && data) {
-                console.log("Loaded Artifacts:", data) // <--- DEBUG LOG
                 setArtifacts(data)
             }
             setLoadingArtifacts(false)
@@ -93,7 +92,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
         <div className="min-h-screen w-full flex items-center justify-center bg-[#050505]">
-            <Loader2 className="animate-spin text-white/50" size={32} />
+            <Loader2 className="animate-spin text-[#0066FF]" size={32} />
         </div>
     )
   }
@@ -103,8 +102,8 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#050505] pt-20 p-6 font-montserrat">
         
-        {/* Background Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+        {/* Background Glow (Updated to System Blue) */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#0066FF]/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
 
         {/* Profile Card Container */}
         <div className="w-full max-w-md bg-black/40 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl relative z-10 animate-in fade-in zoom-in duration-300 flex flex-col min-h-[600px] max-h-[85vh]">
@@ -119,7 +118,7 @@ export default function ProfilePage() {
 
             {/* Header / Avatar */}
             <div className="flex flex-col items-center mb-6 mt-2 shrink-0">
-                <div className="w-20 h-20 rounded-full border-2 border-white/10 p-1 mb-3 relative overflow-hidden shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                <div className="w-20 h-20 rounded-full border-2 border-white/10 p-1 mb-3 relative overflow-hidden shadow-[0_0_30px_rgba(0,102,255,0.2)]">
                     {user?.user_metadata?.avatar_url ? (
                         <Image 
                             src={user.user_metadata.avatar_url} 
@@ -127,7 +126,8 @@ export default function ProfilePage() {
                             fill
                             className="rounded-full object-cover" 
                             unoptimized
-                            priority // <--- FIXES LCP WARNING (Loads instantly)
+                            priority
+                            referrerPolicy="no-referrer" // <--- FIX FOR GOOGLE IMAGES
                         />
                     ) : (
                         <div className="w-full h-full bg-white/5 flex items-center justify-center rounded-full">
@@ -135,8 +135,10 @@ export default function ProfilePage() {
                         </div>
                     )}
                 </div>
-                <h1 className="text-xl font-bold text-white text-center font-montserrat">{user?.user_metadata?.full_name || "Anonymous Observer"}</h1>
-                <p className="text-[10px] text-green-500/80 font-montserrat font-bold mt-2 tracking-[0.2em] uppercase border border-green-900/30 bg-green-900/10 px-3 py-1 rounded-full">
+                <h1 className="text-xl font-bold text-white text-center font-montserrat uppercase tracking-wide">
+                    {user?.user_metadata?.full_name || "Anonymous Observer"}
+                </h1>
+                <p className="text-[10px] text-[#0066FF] font-montserrat font-bold mt-2 tracking-[0.2em] uppercase border border-[#0066FF]/30 bg-[#0066FF]/10 px-3 py-1 rounded-full">
                     Identity Verified
                 </p>
             </div>
@@ -146,7 +148,7 @@ export default function ProfilePage() {
                 <button 
                     onClick={() => setActiveTab("identity")}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-                        activeTab === "identity" ? "bg-white/10 text-white shadow-lg border border-white/5" : "text-white/30 hover:text-white/60 hover:bg-white/5 border border-transparent"
+                        activeTab === "identity" ? "bg-[#0066FF]/20 text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] border border-[#0066FF]/50" : "text-white/30 hover:text-white/60 hover:bg-white/5 border border-transparent"
                     }`}
                 >
                     <Fingerprint size={14} /> Identity
@@ -154,7 +156,7 @@ export default function ProfilePage() {
                 <button 
                     onClick={() => setActiveTab("artifacts")}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-                        activeTab === "artifacts" ? "bg-white/10 text-white shadow-lg border border-white/5" : "text-white/30 hover:text-white/60 hover:bg-white/5 border border-transparent"
+                        activeTab === "artifacts" ? "bg-[#0066FF]/20 text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] border border-[#0066FF]/50" : "text-white/30 hover:text-white/60 hover:bg-white/5 border border-transparent"
                     }`}
                 >
                     <Grid size={14} /> Artifacts
@@ -176,8 +178,8 @@ export default function ProfilePage() {
                             className="space-y-4"
                         >
                             <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors group">
-                                <div className="p-2 bg-white/5 rounded-lg group-hover:bg-white/10 transition-colors">
-                                    <Mail size={18} className="text-white/60" />
+                                <div className="p-2 bg-white/5 rounded-lg group-hover:bg-[#0066FF]/20 transition-colors">
+                                    <Mail size={18} className="text-white/60 group-hover:text-[#0066FF]" />
                                 </div>
                                 <div className="flex flex-col overflow-hidden">
                                     <span className="text-[9px] text-white/30 uppercase tracking-widest font-bold mb-0.5 font-montserrat">Signal Source</span>
@@ -188,8 +190,8 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors group">
-                                <div className="p-2 bg-white/5 rounded-lg group-hover:bg-white/10 transition-colors">
-                                     <Shield size={18} className="text-white/60" />
+                                <div className="p-2 bg-white/5 rounded-lg group-hover:bg-[#0066FF]/20 transition-colors">
+                                     <Shield size={18} className="text-white/60 group-hover:text-[#0066FF]" />
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] text-white/30 uppercase tracking-widest font-bold mb-0.5 font-montserrat">Clearance Level</span>
@@ -211,7 +213,7 @@ export default function ProfilePage() {
                                 
                                 {loadingArtifacts ? (
                                      <div className="h-full flex items-center justify-center">
-                                         <Loader2 className="animate-spin text-white/20" size={24} />
+                                         <Loader2 className="animate-spin text-[#0066FF]" size={24} />
                                      </div>
                                 ) : artifacts.length > 0 ? (
                                     <div className="grid grid-cols-3 gap-2 pb-2">
@@ -226,7 +228,6 @@ export default function ProfilePage() {
                                                     fill
                                                     className="object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500 grayscale group-hover:grayscale-0"
                                                     unoptimized
-                                                    // Add priority to artifacts visible immediately
                                                     priority={true} 
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">

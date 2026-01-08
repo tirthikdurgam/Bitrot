@@ -5,7 +5,9 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/profile'
+  
+  // CHANGED: Default to '/' (Feed) so users land on the main app after login
+  const next = searchParams.get('next') ?? '/'
 
   if (code) {
     const cookieStore = await cookies()
@@ -31,12 +33,15 @@ export async function GET(request: Request) {
         },
       }
     )
+    
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (!error) {
+      // Successful login -> Redirect to Feed (or the 'next' param)
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
 
-  // Return the user to an error page with instructions
+  // Login failed -> Redirect to error page
   return NextResponse.redirect(`${origin}/auth/auth-code-error`)
 }

@@ -41,9 +41,11 @@ export default function Navbar() {
           
           {/* 1. LOGO & VERSION */}
           <div className="flex items-center gap-4">
-            <Link href="/" className="hover:opacity-80 transition-opacity">
+            {/* FIX: Removed the outer <Link> here. KnixcsLogo has its own Link. */}
+            <div className="hover:opacity-80 transition-opacity cursor-pointer">
               <KnixcsLogo /> 
-            </Link>
+            </div>
+
             <div className="hidden sm:flex items-center gap-2 px-2 py-0.5 border border-white/10 bg-white/5 text-[9px] font-bold tracking-widest text-white/40 uppercase rounded-sm">
                 <Terminal size={8} />
                 <span>SYS_V.2.0</span>
@@ -73,10 +75,9 @@ export default function Navbar() {
 
             <div className="h-8 w-[1px] bg-white/10 hidden lg:block" />
 
-            {/* Upload Button (Updated: rounded-full) */}
+            {/* Upload Button */}
             <button 
               onClick={() => setIsUploadOpen(true)} 
-              // CHANGED: added 'rounded-full' to the class list
               className="group flex items-center gap-2 px-5 py-2 border border-[#0066FF]/50 text-[#0066FF] bg-[#0066FF]/5 hover:bg-[#0066FF] hover:text-white transition-all duration-300 rounded-full"
             >
               <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform" /> 
