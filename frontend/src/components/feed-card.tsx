@@ -36,10 +36,13 @@ export default function FeedCard({
   generations,
   witnesses,
   caption,
-  comments = [],
+  comments = [], // Initial comments from server
   has_secret = false,
-  userCredits = 100 // Placeholder
+  userCredits = 100
 }: FeedCardProps) {
+  
+  // 1. Create local state for comments so we can update them instantly
+  const [localComments, setLocalComments] = useState<Comment[]>(comments)
   
   const [showComments, setShowComments] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -50,36 +53,49 @@ export default function FeedCard({
   const isSecretActive = has_secret && bitIntegrity >= 80
   const secretHandlers = useSecretGate(id, isSecretActive, isHovered)
   
-  // Colors
-  const integrityColor = isDead ? "text-red-500" : bitIntegrity < 50 ? "text-amber-400" : "text-[#00FF41]"
   const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
   
-  const latestComments = comments.slice(-2);
+  // Use localComments for the preview instead of the static prop
+  const latestComments = localComments.slice(-2);
 
   const handlePostComment = async (text: string, parentId?: string) => {
     try {
+      // 2. Optimistic Update: Create a fake new comment to show immediately
+      const newTempComment: Comment = {
+        id: Math.random().toString(), // Temp ID until refresh
+        username: "You", // Or current user if available
+        content: text,
+        created_at: new Date().toISOString(),
+        parent_id: parentId
+      }
+
+      // Add to list immediately
+      setLocalComments(prev => [...prev, newTempComment])
+
+      // 3. Send to backend
       await fetch("/api/comment", { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ post_id: id, content: text, parent_id: parentId })
       })
-      window.location.reload()
+      
+      // REMOVED: window.location.reload() 
+
     } catch (error) {
       console.error("Transmission Error:", error)
+      // Optional: Remove the temp comment if it failed
     }
   }
 
   const handleHeal = async () => {
     if(userCredits < 10) return alert("Not enough credits!")
     setIsHealing(true)
-    // TODO: API Call
     setTimeout(() => setIsHealing(false), 1000)
   }
 
   const handleCorrupt = async () => {
     if(userCredits < 10) return alert("Not enough credits!")
     setIsCorrupting(true)
-    // TODO: API Call
     setTimeout(() => setIsCorrupting(false), 1000)
   }
 
@@ -96,18 +112,15 @@ export default function FeedCard({
       {/* --- HEADER --- */}
       <div className="px-4 py-3 flex items-center justify-between relative z-10 border-b border-white/5 bg-white/5">
           <div className="flex items-center gap-3">
-              {/* Avatar Gradient */}
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00FF41]/20 to-purple-500/20 border border-white/10 p-[2px]">
                 <div className="w-full h-full rounded-full bg-black/50"></div>
               </div>
               
-              {/* Username & Lock */}
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white tracking-wide">@{username}</span>
                 {isSecretActive && <Lock size={12} className="text-[#00FF41] drop-shadow-[0_0_5px_#00FF41]" />}
               </div>
           </div>
-          
           <div></div>
       </div>
 
@@ -136,12 +149,10 @@ export default function FeedCard({
          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-4">
                 
-                {/* HEAL BUTTON - Neutral Color */}
                 {!isDead && (
                 <button 
                   onClick={handleHeal} 
                   disabled={isHealing || userCredits < 10} 
-                  // CHANGED: Removed text-[#00FF41], added text-white/70 hover:text-white
                   className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isHealing ? 'animate-pulse text-[#00FF41]' : ''}`}
                   title="-10 Credits to Heal"
                 >
@@ -149,12 +160,10 @@ export default function FeedCard({
                 </button>
                 )}
 
-                {/* CORRUPT BUTTON - Neutral Color */}
                 {!isDead && (
                 <button 
                   onClick={handleCorrupt} 
                   disabled={isCorrupting || userCredits < 10} 
-                  // CHANGED: Removed text-red-500, added text-white/70 hover:text-white
                   className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isCorrupting ? 'animate-shake text-red-500' : ''}`}
                   title="-10 Credits to Corrupt"
                 >
@@ -162,7 +171,6 @@ export default function FeedCard({
                 </button>
                 )}
 
-                {/* COMMENT BUTTON - Neutral Color (Already correct) */}
                 <button onClick={() => setShowComments(!showComments)} className="text-white/70 hover:text-white transition-colors -mt-0.5">
                    <MessageCircle size={24} />
                 </button>
@@ -185,13 +193,13 @@ export default function FeedCard({
            </div>
          )}
 
-         {comments.length > 0 && (
+         {localComments.length > 0 && (
             <button onClick={() => setShowComments(!showComments)} className="text-white/50 text-sm mb-2 hover:text-white/70 transition-colors">
-                View all {comments.length} comments
+                View all {localComments.length} comments
             </button>
          )}
 
-         {/* INLINE COMMENTS */}
+         {/* INLINE COMMENTS (Now uses local state) */}
          <div className="space-y-1 mb-3">
             {latestComments.map(comment => (
                 <div key={comment.id} className="text-sm text-white/80 truncate">
@@ -221,7 +229,7 @@ export default function FeedCard({
              <div className="p-5">
                <CommentSection 
                   postId={id} 
-                  comments={comments} 
+                  comments={localComments} // Pass the local state
                   onPostComment={handlePostComment}
                />
              </div>

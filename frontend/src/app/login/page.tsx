@@ -63,7 +63,6 @@ export default function LoginPage() {
     }
   }
 
-  // --- UPDATED SOCIAL LOGIN HANDLER ---
   const handleSocialLogin = async (provider: "google" | "github") => {
     setLoading(true)
     setError(null)
@@ -71,7 +70,6 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signInWithOAuth({
             provider,
             options: {
-                // This is crucial for Github to work:
                 redirectTo: `${window.location.origin}/auth/callback`,
             },
         })
@@ -91,7 +89,7 @@ export default function LoginPage() {
       {/* GLASS CONTAINER */}
       <div className="w-full max-w-[420px] bg-black/60 border border-white/10 rounded-2xl p-8 relative z-10 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in duration-300">
         
-        {/* Close / Dismiss Button */}
+        {/* Close / Dismiss Button - Using Link to '/' with prefetch for speed */}
         <Link 
             href="/" 
             className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
@@ -103,10 +101,10 @@ export default function LoginPage() {
         {/* Header */}
         <div className="mb-8 text-center mt-2">
           <h1 className="text-3xl font-bold text-white mb-2 font-montserrat">
-            Log in or sign up
+            Log in or Sign up
           </h1>
           <p className="text-sm text-white/50 font-inter">
-            Access the BitRot Decay Cycle.
+            Access the BitRot Website.
           </p>
         </div>
 

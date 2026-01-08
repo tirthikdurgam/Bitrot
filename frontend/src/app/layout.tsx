@@ -17,7 +17,7 @@ const inter = Inter({
 });
 // 2. Site Metadata
 export const metadata: Metadata = {
-  title: "BitLoss", 
+  title: "Bitloss - Digital Decay Experiment", 
   description: "Digital Decay Experiment",
 };
 

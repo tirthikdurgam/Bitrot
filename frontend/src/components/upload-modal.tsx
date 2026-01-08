@@ -4,9 +4,8 @@ import { useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Upload, Loader2, CloudUpload, Type, Lock } from "lucide-react"
 import Image from "next/image"
-import { createClient } from "@/utils/supabase/client" // <--- IMPORT ADDED
+import { createClient } from "@/utils/supabase/client"
 
-// Utility to hide scrollbar
 const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
 
 interface UploadModalProps {
@@ -42,28 +41,24 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault() // Prevents refresh on actual submit
     if (!file) return
 
     setIsUploading(true)
     
-    // --- 1. FETCH REAL USERNAME START ---
+    // --- FETCH USERNAME ---
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
     let username = "Anonymous_Creator"
-    
     if (user) {
-        // Use Full Name if available, otherwise use Email prefix
         username = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
-        // Replace spaces with underscores for a cleaner handle
         username = username.replace(/\s+/g, '_')
     }
-    // --- FETCH REAL USERNAME END ---
 
     const formData = new FormData()
     formData.append("file", file)
-    formData.append("author", username) // <--- CHANGED from 'user' to 'author' (Real Name)
+    formData.append("author", username)
     formData.append("caption", caption)
     
     if (secret.trim()) {
@@ -108,7 +103,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             className="absolute inset-0 bg-black/60 backdrop-blur-md cursor-pointer"
           />
 
-          {/* 2. THE MODAL CONTAINER (Smoky Glass) */}
+          {/* 2. THE MODAL CONTAINER */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -117,18 +112,17 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             className="relative w-full max-w-5xl bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
           >
             
-            {/* Close Button */}
+            {/* FIX 1: CLOSE BUTTON - Added type="button" */}
             <button
+              type="button" 
               onClick={onClose}
               className="absolute top-6 right-6 z-50 p-2 bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-colors rounded-full backdrop-blur-md cursor-pointer border border-white/5"
             >
               <X size={20} />
             </button>
 
-            {/* --- LEFT PANEL: UPLOAD ZONE (Integrated) --- */}
-            <div 
-                className={`w-full md:w-5/12 border-b md:border-b-0 md:border-r border-white/10 relative flex flex-col ${scrollbarHiddenClass} bg-white/[0.02]`}
-            >
+            {/* --- LEFT PANEL: UPLOAD ZONE --- */}
+            <div className={`w-full md:w-5/12 border-b md:border-b-0 md:border-r border-white/10 relative flex flex-col ${scrollbarHiddenClass} bg-white/[0.02]`}>
               {preview ? (
                 // PREVIEW MODE
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative w-full h-full flex flex-col items-center justify-center p-8">
@@ -141,7 +135,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                         unoptimized 
                       />
                   </div>
+                  {/* FIX 2: REPLACE IMAGE BUTTON - Added type="button" */}
                   <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="mt-6 text-xs font-bold text-white hover:text-black uppercase tracking-widest bg-white/10 hover:bg-white px-6 py-3 rounded-xl transition-all border border-white/10 backdrop-blur-md shadow-lg"
                   >
@@ -149,13 +145,12 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   </button>
                 </motion.div>
               ) : (
-                // UPLOAD WIDGET (Expanded to Borders)
+                // UPLOAD WIDGET
                 <motion.div 
                     initial={{ opacity: 0 }} 
                     animate={{ opacity: 1 }} 
                     className="w-full h-full flex flex-col"
                 >
-                    {/* Integrated Header */}
                     <div className="px-8 pt-8 pb-4 flex items-center gap-3">
                         <div className="p-2 bg-white/10 rounded-full text-white">
                             <CloudUpload size={20} />
@@ -166,16 +161,13 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                         </div>
                     </div>
 
-                    {/* Integrated Drop Zone */}
                     <div className="flex-1 p-6 pt-0">
                         <div 
                             onClick={() => fileInputRef.current?.click()}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={handleDrop}
-                            // Dashed border now fills the panel space naturally
                             className="w-full h-full border-2 border-dashed border-white/10 rounded-3xl bg-white/[0.01] hover:bg-white/5 hover:border-white/20 transition-all cursor-pointer flex flex-col items-center justify-center gap-6 group relative overflow-hidden"
                         >
-                             {/* Subtle Glow Effect on Hover */}
                              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/0 group-hover:via-white/5 transition-colors duration-500" />
 
                             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:scale-110 group-hover:bg-white/10 group-hover:text-white transition-all z-10">
@@ -187,7 +179,8 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                                 <p className="text-white/30 text-[10px] uppercase tracking-wide font-medium">JPEG, PNG, WEBP — Max 50MB</p>
                             </div>
 
-                            <button className="px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black text-xs font-bold rounded-lg transition-all border border-white/10 shadow-lg mt-2 z-10">
+                            {/* FIX 3: BROWSE FILES BUTTON - Added type="button" */}
+                            <button type="button" className="px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black text-xs font-bold rounded-lg transition-all border border-white/10 shadow-lg mt-2 z-10 pointer-events-none">
                                 Browse Files
                             </button>
                         </div>
@@ -238,7 +231,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit Button - This is the ONLY button that should submit */}
                 <button
                   type="submit"
                   disabled={!file || isUploading}

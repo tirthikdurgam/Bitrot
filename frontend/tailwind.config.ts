@@ -9,19 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        terminal: {
-          green: "#00FF41", 
-          black: "#050505",
-        }
+        // CHANGED: "Neon Green" is now "System Blue" (#0066FF)
+        neon: "#0066FF", 
+        dark: "#050505", 
+        glass: "rgba(255, 255, 255, 0.05)",
       },
       fontFamily: {
-        // 1. Keep your existing monospace
-        mono: ['var(--font-courier)', 'monospace'],
-        
-        // 2. Add standard fonts used in your layout (Variables still work for these)
-        montserrat: ["var(--font-montserrat)"],
-        inter: ["var(--font-inter)"],
-
+        sans: ['var(--font-montserrat)', 'sans-serif'], 
+        mono: ['var(--font-inter)', 'monospace'], 
+      },
+      animation: {
+        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },
