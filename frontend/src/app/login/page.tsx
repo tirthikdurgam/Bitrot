@@ -51,6 +51,11 @@ export default function LoginPage() {
             options: {
                 // Ensure this points to your callback route
                 emailRedirectTo: `${window.location.origin}/auth/callback`,
+                // FIX: Send metadata explicitly for Email Logins to prevent trigger crash
+                data: {
+                    full_name: email.split('@')[0], // Use email prefix as name
+                    avatar_url: "", // Empty string instead of null
+                }
             },
         })
 
@@ -170,7 +175,7 @@ export default function LoginPage() {
 
         {/* FOOTER */}
         <p className="mt-8 text-[10px] text-center text-white/30 font-inter leading-relaxed">
-            By continuing, you agree to the <Link href="/terms" className="underline hover:text-white">Knixcs Protocol</Link>. 
+            By continuing, you agree to the <Link href="/terms" className="underline hover:text-white">Bitloss Protocol</Link>. 
             <br/> This site is protected by reCAPTCHA Enterprise.
         </p>
 

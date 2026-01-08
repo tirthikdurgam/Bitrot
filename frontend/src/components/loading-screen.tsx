@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 
 // System logs (Blue/System Theme)
@@ -60,9 +60,16 @@ export default function LoadingScreen({ onComplete }: { onComplete: () => void }
     return () => clearInterval(logTimer)
   }, [])
 
-  // 3. FINISH HANDLER
+  // 3. FINISH HANDLER (With Session Save)
   useEffect(() => {
     if (progress >= 100) {
+      // --- SESSION LOGIC START ---
+      // Save the current timestamp when loading finishes.
+      // The parent page will check this timestamp next time to decide if we skip loading.
+      localStorage.setItem("bitloss_session_timestamp", Date.now().toString())
+      // --- SESSION LOGIC END ---
+
+      // Wait a moment for the "100%" visual to land, then unmount
       setTimeout(onComplete, 500)
     }
   }, [progress, onComplete])
@@ -86,9 +93,6 @@ export default function LoadingScreen({ onComplete }: { onComplete: () => void }
     }
   }, [])
 
-  // Use the Blue from your Login Button (#0056D2) but slightly brighter for glows (#0066FF)
-  const ACCENT_COLOR = "#0066FF" 
-
   return (
     <motion.div
       className="fixed inset-0 z-[9999] bg-[#050505] text-white font-montserrat overflow-hidden select-none cursor-crosshair"
@@ -100,7 +104,7 @@ export default function LoadingScreen({ onComplete }: { onComplete: () => void }
       onTouchEnd={stopOverclock}
     >
       
-      {/* --- LAYER 1: GRID & SCANLINES (Blue Tint) --- */}
+      {/* --- LAYER 1: GRID & SCANLINES --- */}
       <div className="absolute inset-0 pointer-events-none opacity-20">
          <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(0,0,255,0.06),rgba(0,100,255,0.02),rgba(0,0,255,0.06))] z-10 bg-[length:100%_2px,3px_100%]" />
          <div className="w-full h-full bg-[radial-gradient(circle_800px_at_50%_50%,#0066FF_0%,transparent_100%)] opacity-5" />
@@ -171,7 +175,6 @@ export default function LoadingScreen({ onComplete }: { onComplete: () => void }
 
       </div>
 
-      {/* --- CSS FOR GLITCH EFFECT (Blue Variant) --- */}
       <style jsx global>{`
         .glitch-text {
             position: relative;

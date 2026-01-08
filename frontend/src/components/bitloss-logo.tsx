@@ -20,7 +20,7 @@ export default function KnixcsLogo({
       <div className="relative transition-all duration-300 group-hover:scale-105 group-hover:brightness-125 drop-shadow-2xl">
         <Image 
           src="/image.png" 
-          alt="Knixcs" 
+          alt="Bitloss" 
           width={width} 
           height={70}
           className="object-contain w-auto h-auto"

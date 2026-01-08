@@ -39,10 +39,10 @@ export default function EmptyFeedState() {
 
         <div className="text-center space-y-2">
             <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white uppercase glitch-text" data-text="NO_SIGNAL">
-                NO_SIGNAL
+                NO SIGNAL
             </h2>
             <p className="text-xs font-mono text-[#0066FF] tracking-[0.4em] uppercase animate-pulse">
-                feed_connection_lost
+                feed connection lost
             </p>
         </div>
       </div>
