@@ -1,7 +1,7 @@
 "use client"
 
-import { MessageSquare, CornerDownRight, Loader2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { Send, CornerDownRight } from "lucide-react"
 
 interface Comment {
   id: string
@@ -13,223 +13,106 @@ interface Comment {
 
 interface CommentSectionProps {
   postId: string
-  // We keep this prop for initial data (optimistic UI), 
-  // but we will prioritize fetched data if available.
-  comments: Comment[] 
-  onPostComment: (text: string, parentId?: string) => void
+  comments: Comment[]
+  onPostComment?: (text: string, parentId?: string) => void
+  variant?: "default" | "paper" // Keeping prop for compatibility, though we default to 'glass' style
 }
 
-// Helper: Time Ago
-function timeAgo(dateString: string) {
-  if (!dateString) return "Just now"
-  const date = new Date(dateString)
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  if (seconds < 60) return "Just now"
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
+export default function CommentSection({ 
+  postId, 
+  comments, 
+  onPostComment 
+}: CommentSectionProps) {
+  const [newComment, setNewComment] = useState("")
+  const [replyTo, setReplyTo] = useState<string | null>(null)
 
-// --- RECURSIVE COMMENT ITEM ---
-interface CommentItemProps {
-  comment: Comment
-  depth?: number
-  allComments: Comment[]
-  replyingTo: string | null
-  setReplyingTo: (id: string | null) => void
-  replyInput: string
-  setReplyInput: (val: string) => void
-  onReplySubmit: (parentId: string) => void
-}
-
-const CommentItem = ({ 
-  comment, 
-  depth = 0, 
-  allComments, 
-  replyingTo, 
-  setReplyingTo, 
-  replyInput, 
-  setReplyInput, 
-  onReplySubmit 
-}: CommentItemProps) => {
-  // Find children for this comment
-  const replies = allComments.filter(c => c.parent_id === comment.id)
-  const isReplying = replyingTo === comment.id
-
-  return (
-    <div className={`flex flex-col ${depth > 0 ? "ml-6 border-l border-white/10 pl-4" : ""}`}>
-      <div className="flex gap-3 group py-2">
-         {/* Avatar */}
-         <div className="flex flex-col items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-800 to-black border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
-              <span className="text-[10px] font-bold text-gray-400 font-montserrat">
-                {comment.username ? comment.username[0].toUpperCase() : "?"}
-              </span>
-            </div>
-         </div>
-
-         {/* Content */}
-         <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs text-gray-500 mb-1 font-montserrat">
-              <span className="font-bold text-gray-300 truncate max-w-[120px]">@{comment.username}</span>
-              <span className="text-[10px]">•</span>
-              <span className="text-[10px]">{timeAgo(comment.created_at)}</span>
-            </div>
-
-            <div className="text-sm text-gray-200 font-montserrat leading-relaxed mb-2 break-words">
-              {comment.content}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-4 text-gray-600 font-montserrat">
-               <button 
-                 onClick={() => setReplyingTo(isReplying ? null : comment.id)}
-                 className="flex items-center gap-1 text-[10px] font-bold hover:text-[#00FF41] transition-colors uppercase tracking-wider"
-               >
-                 <MessageSquare size={10} /> Reply
-               </button>
-            </div>
-
-            {/* Reply Input Box */}
-            {isReplying && (
-              <div className="mt-3 flex gap-2 animate-in fade-in slide-in-from-top-2">
-                 <CornerDownRight className="text-gray-600 mt-2" size={16} />
-                 <div className="flex-1">
-                   <textarea
-                     value={replyInput}
-                     onChange={(e) => setReplyInput(e.target.value)}
-                     autoFocus
-                     placeholder={`Reply to @${comment.username}...`}
-                     className="w-full bg-black/30 text-white p-2 text-sm border border-white/20 outline-none focus:border-[#00FF41] rounded-sm min-h-[60px] font-montserrat placeholder:text-gray-700"
-                   />
-                   <div className="flex justify-end gap-2 mt-2">
-                      <button onClick={() => setReplyingTo(null)} className="text-xs text-gray-500 hover:text-white font-montserrat">Cancel</button>
-                      <button onClick={() => onReplySubmit(comment.id)} className="bg-white text-black text-xs font-bold px-3 py-1 hover:bg-[#00FF41] font-montserrat uppercase">Reply</button>
-                   </div>
-                 </div>
-              </div>
-            )}
-         </div>
-      </div>
-
-      {/* Recursively render replies */}
-      <div className="flex flex-col gap-2">
-        {replies.map(reply => (
-          <CommentItem 
-            key={reply.id} 
-            comment={reply} 
-            depth={depth + 1}
-            allComments={allComments}
-            replyingTo={replyingTo}
-            setReplyingTo={setReplyingTo}
-            replyInput={replyInput}
-            setReplyInput={setReplyInput}
-            onReplySubmit={onReplySubmit}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// -----------------------------------------------------------
-
-export default function CommentSection({ postId, comments: initialComments, onPostComment }: CommentSectionProps) {
-  const [comments, setComments] = useState<Comment[]>(initialComments)
-  const [loading, setLoading] = useState(false)
-  
-  const [mainInput, setMainInput] = useState("")
-  const [replyingTo, setReplyingTo] = useState<string | null>(null)
-  const [replyInput, setReplyInput] = useState("")
-
-  // --- THE FIX: Fetch latest comments when opened ---
-  useEffect(() => {
-    // If initialComments is empty, try to fetch to be safe
-    const fetchComments = async () => {
-        try {
-            setLoading(true)
-            // Call backend feed again (or a specific comment endpoint if you have one)
-            // Since we don't have a dedicated /comments endpoint yet, 
-            // we will rely on props but updating state if props change.
-            // Ideally, you would fetch: await fetch(`api/comments/${postId}`)
-        } catch (err) {
-            console.error(err)
-        } finally {
-            setLoading(false)
-        }
-    }
-    // Sync props to state whenever parent passes new data
-    setComments(initialComments)
-  }, [initialComments, postId])
-
-  // Only render top-level comments here
-  const rootComments = comments.filter(c => !c.parent_id)
-  
-  const handleMainSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!mainInput.trim()) return
-    onPostComment(mainInput)
-    setMainInput("")
+    if (!newComment.trim() || !onPostComment) return
+    onPostComment(newComment, replyTo || undefined)
+    setNewComment("")
+    setReplyTo(null)
   }
 
-  const handleReplySubmit = (parentId: string) => {
-    if (!replyInput.trim()) return
-    onPostComment(replyInput, parentId)
-    setReplyingTo(null)
-    setReplyInput("")
-  }
+  // Filter root comments vs replies
+  const rootComments = comments.filter(c => !c.parent_id)
+  const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId)
 
   return (
-    <div className="w-full bg-[#080808] border-t border-white/10 p-4">
-      {/* MAIN INPUT */}
-      <form onSubmit={handleMainSubmit} className="mb-8">
-        <div className="relative rounded-sm border border-white/20 bg-white/[0.02] focus-within:border-[#00FF41] focus-within:bg-black transition-colors">
-          <textarea
-            value={mainInput}
-            onChange={(e) => setMainInput(e.target.value)}
-            placeholder="Write a comment..."
-            className="w-full bg-transparent text-white p-3 min-h-[80px] outline-none font-montserrat text-sm resize-y placeholder:text-gray-600"
-          />
-          <div className="flex justify-end p-2 border-t border-white/10">
-            <button
+    <div className="flex flex-col gap-4">
+      
+      {/* 1. COMMENT LIST */}
+      <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+        {rootComments.length === 0 ? (
+           <div className="text-center py-8 text-white/20 italic text-sm">
+              No signals yet. Be the first to transmit.
+           </div>
+        ) : (
+          rootComments.map(comment => (
+            <div key={comment.id} className="group animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex gap-3">
+                {/* Avatar */}
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex-shrink-0" />
+                
+                <div className="flex-1">
+                   <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-bold text-white tracking-wide">@{comment.username}</span>
+                      <span className="text-[10px] text-white/30">{new Date(comment.created_at).toLocaleDateString()}</span>
+                   </div>
+                   <p className="text-sm text-white/80 leading-relaxed font-light">{comment.content}</p>
+                   
+                   <button 
+                      onClick={() => setReplyTo(comment.id)} 
+                      className="text-[10px] font-bold text-white/30 mt-1 hover:text-[#00FF41] transition-colors uppercase tracking-wider"
+                   >
+                      Reply
+                   </button>
+                </div>
+              </div>
+
+              {/* Replies */}
+              {getReplies(comment.id).map(reply => (
+                <div key={reply.id} className="flex gap-3 mt-3 pl-8 relative">
+                   <CornerDownRight size={12} className="absolute left-3 top-2 text-white/20" />
+                   <div className="w-6 h-6 rounded-full bg-white/5 border border-white/5 flex-shrink-0" />
+                   <div className="flex-1">
+                      <span className="text-xs font-bold text-white/90 mr-2">@{reply.username}</span>
+                      <span className="text-xs text-white/60">{reply.content}</span>
+                   </div>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 2. GLASS INPUT CAPSULE */}
+      <form onSubmit={handleSubmit} className="relative mt-2">
+        {replyTo && (
+           <div className="flex items-center justify-between px-4 py-1 text-xs text-[#00FF41] bg-[#00FF41]/5 rounded-t-lg mx-2 border-x border-t border-[#00FF41]/20">
+              <span>Replying to thread...</span>
+              <button onClick={() => setReplyTo(null)} className="hover:text-white font-bold">✕</button>
+           </div>
+        )}
+        
+        <div className="relative group focus-within:ring-1 focus-within:ring-[#00FF41]/50 rounded-full transition-all">
+            <input
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Transmit signal..."
+              className="w-full bg-white/5 hover:bg-white/10 focus:bg-black/40 text-white placeholder-white/30 text-sm px-5 py-3 rounded-full border border-white/10 outline-none transition-all pr-12 backdrop-blur-md"
+            />
+            <button 
               type="submit"
-              disabled={!mainInput.trim()}
-              className="px-4 py-1 text-xs font-bold bg-white text-black hover:bg-[#00FF41] transition-colors rounded-sm uppercase font-montserrat disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!newComment.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-[#00FF41] text-black rounded-full hover:scale-105 active:scale-95 disabled:opacity-0 disabled:scale-50 transition-all duration-200 shadow-[0_0_10px_rgba(0,255,65,0.4)]"
             >
-              Post Comment
+              <Send size={14} className="ml-0.5" />
             </button>
-          </div>
         </div>
       </form>
 
-      {/* COMMENT TREE */}
-      {loading ? (
-          <div className="flex justify-center py-4">
-              <Loader2 className="animate-spin text-white/20" />
-          </div>
-      ) : (
-          <div className="space-y-6">
-            {rootComments.length === 0 ? (
-                <p className="text-center text-xs text-gray-600 font-montserrat italic py-4">No signals yet. Be the first to transmit.</p>
-            ) : (
-                rootComments.map(comment => (
-                <CommentItem 
-                    key={comment.id} 
-                    comment={comment} 
-                    allComments={comments}
-                    replyingTo={replyingTo}
-                    setReplyingTo={setReplyingTo}
-                    replyInput={replyInput}
-                    setReplyInput={setReplyInput}
-                    onReplySubmit={handleReplySubmit}
-                />
-                ))
-            )}
-          </div>
-      )}
     </div>
   )
 }

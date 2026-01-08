@@ -3,43 +3,9 @@
 import { useState } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Eye, MessageSquare, Lock, Crosshair, ShieldAlert } from "lucide-react"
+import { MessageCircle, Lock, ShieldAlert, Zap, Skull, Coins, Eye, Send } from "lucide-react"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
-
-// --- AESTHETIC COMPONENTS ---
-
-const HazardStrip = () => (
-  <div className="h-3 w-full border-b border-white/20 overflow-hidden relative bg-[#0a0a0a]">
-    <div className="absolute inset-0 opacity-30"
-      style={{
-        backgroundImage: `repeating-linear-gradient(
-          -45deg,
-          transparent,
-          transparent 4px,
-          #fff 4px,
-          #fff 8px
-        )`
-      }}
-    />
-  </div>
-)
-
-const BarcodeVertical = () => (
-  <div className="h-full w-6 flex flex-col justify-between opacity-60 mix-blend-screen border-l border-white/10 ml-2 pl-2">
-     {Array.from({ length: 16 }).map((_, i) => (
-        <div key={i} className="w-full bg-white" style={{ height: Math.random() * 2 + 1 }} />
-     ))}
-  </div>
-)
-
-const GlobeGrid = () => (
-    <div className="w-6 h-6 rounded-full border border-white/40 relative flex items-center justify-center overflow-hidden opacity-80">
-        <div className="absolute inset-0 border border-white/20 rounded-full scale-125" />
-        <div className="absolute w-full h-[1px] bg-white/30 top-1/2 -translate-y-1/2" />
-        <div className="absolute h-full w-[1px] bg-white/30 left-1/2 -translate-x-1/2" />
-    </div>
-)
 
 interface Comment {
   id: string
@@ -54,11 +20,12 @@ interface FeedCardProps {
   username: string
   image: string
   bitIntegrity: number
-  generations: number
+  generations: number 
   witnesses: number
   caption?: string
   comments?: Comment[]
   has_secret?: boolean
+  userCredits?: number 
 }
 
 export default function FeedCard({
@@ -70,17 +37,24 @@ export default function FeedCard({
   witnesses,
   caption,
   comments = [],
-  has_secret = false
+  has_secret = false,
+  userCredits = 100 // Placeholder
 }: FeedCardProps) {
   
   const [showComments, setShowComments] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isHealing, setIsHealing] = useState(false)
+  const [isCorrupting, setIsCorrupting] = useState(false)
   
   const isDead = bitIntegrity <= 0
   const isSecretActive = has_secret && bitIntegrity >= 80
   const secretHandlers = useSecretGate(id, isSecretActive, isHovered)
   
-  const integrityColor = isDead ? "text-red-500" : bitIntegrity < 50 ? "text-yellow-400" : "text-white"
+  // Colors
+  const integrityColor = isDead ? "text-red-500" : bitIntegrity < 50 ? "text-amber-400" : "text-[#00FF41]"
+  const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
+  
+  const latestComments = comments.slice(-2);
 
   const handlePostComment = async (text: string, parentId?: string) => {
     try {
@@ -95,138 +69,162 @@ export default function FeedCard({
     }
   }
 
+  const handleHeal = async () => {
+    if(userCredits < 10) return alert("Not enough credits!")
+    setIsHealing(true)
+    // TODO: API Call
+    setTimeout(() => setIsHealing(false), 1000)
+  }
+
+  const handleCorrupt = async () => {
+    if(userCredits < 10) return alert("Not enough credits!")
+    setIsCorrupting(true)
+    // TODO: API Call
+    setTimeout(() => setIsCorrupting(false), 1000)
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full bg-[#030303] border border-white/15 relative group hover:border-white/40 transition-all duration-300 font-rajdhani"
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      className="relative group rounded-xl overflow-hidden border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl mb-6"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       
-      {/* ROW 1: HEADER STRIP */}
-      <div className="flex flex-col">
-        <HazardStrip />
-        <div className="flex border-b border-white/20 h-10">
-            
-            {/* Box 1: ASSET LABEL */}
-            <div className="flex-1 px-3 flex items-center justify-between bg-white/[0.02] border-r border-white/20">
-                <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-white/50 rounded-sm" />
-                    <span className="text-[11px] font-bold text-white tracking-[0.15em] uppercase">
-                          {isSecretActive ? "ENCRYPTED_PAYLOAD" : "STANDARD_ASSET"}
-                    </span>
-                </div>
-                {isSecretActive && <Lock size={12} className="text-[#00FF41]" />}
-            </div>
-
-            {/* Box 2: GLOBE ICON */}
-            <div className="w-12 flex items-center justify-center bg-black">
-                <GlobeGrid />
-            </div>
-        </div>
+      {/* --- HEADER --- */}
+      <div className="px-4 py-3 flex items-center justify-between relative z-10 border-b border-white/5 bg-white/5">
+          <div className="flex items-center gap-3">
+              {/* Avatar Gradient */}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00FF41]/20 to-purple-500/20 border border-white/10 p-[2px]">
+                <div className="w-full h-full rounded-full bg-black/50"></div>
+              </div>
+              
+              {/* Username & Lock */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white tracking-wide">@{username}</span>
+                {isSecretActive && <Lock size={12} className="text-[#00FF41] drop-shadow-[0_0_5px_#00FF41]" />}
+              </div>
+          </div>
+          
+          <div></div>
       </div>
 
-      {/* ROW 2: IMAGE VIEWPORT (OPTIMIZED) */}
-      <div className="relative aspect-square w-full bg-[#050505] border-b border-white/20 overflow-hidden cursor-crosshair group">
-        
-        {/* Crosshairs */}
-        <div className="absolute top-2 left-2 text-white/40 z-20"><Crosshair size={10}/></div>
-        <div className="absolute top-2 right-2 text-white/40 z-20"><Crosshair size={10}/></div>
-        <div className="absolute bottom-2 left-2 text-white/40 z-20"><Crosshair size={10}/></div>
-        <div className="absolute bottom-2 right-2 text-white/40 z-20"><Crosshair size={10}/></div>
-
+      {/* --- IMAGE AREA --- */}
+      <div className="relative w-full aspect-square bg-black/50 z-10 overflow-hidden">
         <Image 
           src={image} 
           alt={username} 
           fill 
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          className={`object-cover transition-all duration-700 ${isDead ? 'grayscale contrast-150 brightness-50' : 'group-hover:scale-[1.02] grayscale hover:grayscale-0'}`}
+          sizes="(max-width: 768px) 100vw, 600px"
+          className={`object-cover transition-all duration-700 ${isDead ? 'grayscale contrast-150 brightness-75 sepia-[.3]' : 'group-hover:scale-[1.02]'}`}
           {...(isSecretActive ? secretHandlers : {})}
-          // REMOVED: unoptimized={true} -> This enables automatic optimization
         />
 
         {isDead && (
-           <div className="absolute inset-0 flex items-center justify-center z-30 bg-black/90 backdrop-blur-sm">
-              <div className="border border-red-500/50 p-6 bg-red-900/10 text-center">
-                 <ShieldAlert className="mx-auto text-red-500 mb-2" size={32} />
-                 <h2 className="text-red-500 font-share-tech text-3xl tracking-widest uppercase">Nullified</h2>
-              </div>
-           </div>
+            <div className="absolute inset-0 flex items-center justify-center z-30 bg-black/80 backdrop-blur-sm">
+                 <ShieldAlert className="text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse" size={64} />
+            </div>
         )}
       </div>
 
-      {/* ROW 3: TECHNICAL DATA GRID */}
-      <div className="grid grid-cols-12 border-b border-white/20">
+      {/* --- FOOTER CONTENT --- */}
+      <div className="p-4 relative z-10 bg-black/20">
          
-         {/* CELL 1: INTEGRITY */}
-         <div className="col-span-4 p-2 border-r border-white/20 flex flex-col justify-between bg-white/[0.02]">
-             <span className="text-[9px] text-white/40 font-semibold tracking-widest uppercase">Integrity</span>
-             <div className="flex items-baseline gap-0.5">
-                 <span className={`text-2xl font-share-tech ${integrityColor}`}>{Math.floor(bitIntegrity)}</span>
-                 <span className="text-[10px] text-white/40 font-share-tech">.{bitIntegrity.toFixed(1).split('.')[1]}%</span>
-             </div>
-             {/* Tiny progress bar */}
-             <div className="w-full bg-white/10 h-0.5 mt-1">
-                 <div className="h-full bg-white/80" style={{ width: `${bitIntegrity}%` }} />
-             </div>
+         {/* ACTION BAR */}
+         <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+                
+                {/* HEAL BUTTON - Neutral Color */}
+                {!isDead && (
+                <button 
+                  onClick={handleHeal} 
+                  disabled={isHealing || userCredits < 10} 
+                  // CHANGED: Removed text-[#00FF41], added text-white/70 hover:text-white
+                  className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isHealing ? 'animate-pulse text-[#00FF41]' : ''}`}
+                  title="-10 Credits to Heal"
+                >
+                    <Zap size={24} className={isHealing ? 'scale-110' : ''} />
+                </button>
+                )}
+
+                {/* CORRUPT BUTTON - Neutral Color */}
+                {!isDead && (
+                <button 
+                  onClick={handleCorrupt} 
+                  disabled={isCorrupting || userCredits < 10} 
+                  // CHANGED: Removed text-red-500, added text-white/70 hover:text-white
+                  className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isCorrupting ? 'animate-shake text-red-500' : ''}`}
+                  title="-10 Credits to Corrupt"
+                >
+                    <Skull size={24} className={isCorrupting ? 'scale-110' : ''} />
+                </button>
+                )}
+
+                {/* COMMENT BUTTON - Neutral Color (Already correct) */}
+                <button onClick={() => setShowComments(!showComments)} className="text-white/70 hover:text-white transition-colors -mt-0.5">
+                   <MessageCircle size={24} />
+                </button>
+            </div>
+            
+            <div className="flex items-center gap-2">
+                <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${bitIntegrity}%` }} className={`h-full ${integrityBg} relative`}>
+                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                    </motion.div>
+                </div>
+            </div>
          </div>
 
-         {/* CELL 2: USER INFO */}
-         <div className="col-span-6 p-2 border-r border-white/20 flex flex-col justify-between">
-             <div className="flex justify-between items-start">
-                <span className="text-[9px] text-white/40 font-semibold tracking-widest uppercase">Operator</span>
-                <span className="text-[9px] text-white/30 font-share-tech">GEN:{generations}</span>
-             </div>
-             <span className="text-sm font-bold text-white truncate w-full">@{username}</span>
+         {/* CAPTION & COMMENTS PREVIEW */}
+         {caption && (
+           <div className="mb-2 text-[15px] text-white/90 leading-tight">
+             <span className="font-bold mr-2">@{username}</span>
+             {caption}
+           </div>
+         )}
+
+         {comments.length > 0 && (
+            <button onClick={() => setShowComments(!showComments)} className="text-white/50 text-sm mb-2 hover:text-white/70 transition-colors">
+                View all {comments.length} comments
+            </button>
+         )}
+
+         {/* INLINE COMMENTS */}
+         <div className="space-y-1 mb-3">
+            {latestComments.map(comment => (
+                <div key={comment.id} className="text-sm text-white/80 truncate">
+                    <span className="font-bold mr-2">@{comment.username}</span>
+                    <span>{comment.content}</span>
+                </div>
+            ))}
          </div>
 
-         {/* CELL 3: VERTICAL BARCODE */}
-         <div className="col-span-2 flex items-center justify-center bg-black overflow-hidden">
-             <BarcodeVertical />
+         {/* INPUT BAR */}
+         <div onClick={() => setShowComments(true)} className="flex items-center gap-3 pt-4 border-t border-white/10 cursor-pointer group/input">
+             <div className="w-7 h-7 rounded-full bg-white/10 border border-white/5"></div>
+             <div className="flex-1 text-white/30 text-sm group-hover/input:text-white/50 transition-colors">Add a comment...</div>
+             <Send size={16} className="text-white/30 group-hover/input:text-[#00FF41] transition-colors" />
          </div>
       </div>
 
-      {/* ROW 4: FOOTER & ACTIONS */}
-      <div className="p-2 flex items-center justify-between bg-[#080808] h-10">
-         <div className="flex items-center gap-4">
-             <button 
-                onClick={() => setShowComments(!showComments)}
-                className={`flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase px-2 py-1 transition-all ${
-                    showComments ? "text-[#00FF41] bg-[#00FF41]/10" : "text-white/40 hover:text-white"
-                }`}
-             >
-                <MessageSquare size={10} /> 
-                LOGS [{comments.length}]
-             </button>
-             <div className="flex items-center gap-1 text-[10px] text-white/40 font-bold uppercase tracking-widest">
-                 <Eye size={10} /> {witnesses}
-             </div>
-         </div>
-         
-         {/* ID HASH */}
-         <div className="text-[9px] text-white/20 font-share-tech tracking-wider">
-             ID_{id.slice(0,6).toUpperCase()}
-         </div>
-      </div>
-
-      {/* COMMENTS DRAWER */}
+      {/* DRAWER */}
       <AnimatePresence>
         {showComments && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/20 bg-black font-share-tech"
+            className="border-t border-white/10 bg-black/80 backdrop-blur-2xl relative z-20 shadow-[inset_0_10px_20px_rgba(0,0,0,0.5)]"
           >
-             <div className="py-1 bg-white/5 border-b border-white/10 text-[8px] text-center text-white/30 tracking-[0.3em] uppercase">
-                 /// SECURE_CONNECTION_ESTABLISHED ///
+             <div className="p-5">
+               <CommentSection 
+                  postId={id} 
+                  comments={comments} 
+                  onPostComment={handlePostComment}
+               />
              </div>
-             <CommentSection 
-                postId={id} 
-                comments={comments} 
-                onPostComment={handlePostComment} 
-             />
           </motion.div>
         )}
       </AnimatePresence>
