@@ -3,11 +3,12 @@
 import { useState } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageCircle, Lock, ShieldAlert, Zap, Skull, Coins, Eye, Send } from "lucide-react"
+import { MessageCircle, Lock, ShieldAlert, Zap, Skull, Send } from "lucide-react"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
 
-interface Comment {
+// 1. EXPORT this interface so CommentSection can import it
+export interface Comment {
   id: string
   username: string
   content: string
@@ -36,12 +37,12 @@ export default function FeedCard({
   generations,
   witnesses,
   caption,
-  comments = [], // Initial comments from server
+  comments = [], 
   has_secret = false,
   userCredits = 100
 }: FeedCardProps) {
   
-  // 1. Create local state for comments so we can update them instantly
+  // Local state for instant updates
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
   
   const [showComments, setShowComments] = useState(false)
@@ -55,35 +56,37 @@ export default function FeedCard({
   
   const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
   
-  // Use localComments for the preview instead of the static prop
-  const latestComments = localComments.slice(-2);
+  // 2. FILTER PREVIEW: Only show top-level comments (not replies) in the card footer
+  const latestComments = localComments.filter(c => !c.parent_id).slice(-2);
 
   const handlePostComment = async (text: string, parentId?: string) => {
     try {
-      // 2. Optimistic Update: Create a fake new comment to show immediately
+      // 3. OPTIMISTIC UPDATE: Show comment immediately before DB confirms
       const newTempComment: Comment = {
-        id: Math.random().toString(), // Temp ID until refresh
-        username: "You", // Or current user if available
+        id: Math.random().toString(), // Temporary ID
+        username: "You", // Placeholder until refresh
         content: text,
         created_at: new Date().toISOString(),
-        parent_id: parentId
+        parent_id: parentId || null // Ensure null if undefined
       }
 
-      // Add to list immediately
       setLocalComments(prev => [...prev, newTempComment])
 
-      // 3. Send to backend
-      await fetch("/api/comment", { 
+      // 4. FIX: Use the Render Backend URL
+      // Previously "/api/comment" was failing because you don't have a Next.js API route
+      await fetch("https://bitrot.onrender.com/comment", { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: id, content: text, parent_id: parentId })
+        body: JSON.stringify({ 
+            post_id: id, 
+            content: text, 
+            parent_id: parentId 
+        })
       })
       
-      // REMOVED: window.location.reload() 
-
     } catch (error) {
       console.error("Transmission Error:", error)
-      // Optional: Remove the temp comment if it failed
+      alert("Signal lost. Comment may not have saved.")
     }
   }
 
@@ -109,7 +112,7 @@ export default function FeedCard({
       onMouseLeave={() => setIsHovered(false)}
     >
       
-      {/* --- HEADER --- */}
+      {/* HEADER */}
       <div className="px-4 py-3 flex items-center justify-between relative z-10 border-b border-white/5 bg-white/5">
           <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00FF41]/20 to-purple-500/20 border border-white/10 p-[2px]">
@@ -121,10 +124,9 @@ export default function FeedCard({
                 {isSecretActive && <Lock size={12} className="text-[#00FF41] drop-shadow-[0_0_5px_#00FF41]" />}
               </div>
           </div>
-          <div></div>
       </div>
 
-      {/* --- IMAGE AREA --- */}
+      {/* IMAGE */}
       <div className="relative w-full aspect-square bg-black/50 z-10 overflow-hidden">
         <Image 
           src={image} 
@@ -142,7 +144,7 @@ export default function FeedCard({
         )}
       </div>
 
-      {/* --- FOOTER CONTENT --- */}
+      {/* FOOTER */}
       <div className="p-4 relative z-10 bg-black/20">
          
          {/* ACTION BAR */}
@@ -185,7 +187,7 @@ export default function FeedCard({
             </div>
          </div>
 
-         {/* CAPTION & COMMENTS PREVIEW */}
+         {/* CAPTION */}
          {caption && (
            <div className="mb-2 text-[15px] text-white/90 leading-tight">
              <span className="font-bold mr-2">@{username}</span>
@@ -193,13 +195,14 @@ export default function FeedCard({
            </div>
          )}
 
+         {/* VIEW COMMENTS LINK */}
          {localComments.length > 0 && (
             <button onClick={() => setShowComments(!showComments)} className="text-white/50 text-sm mb-2 hover:text-white/70 transition-colors">
-                View all {localComments.length} comments
+               View all {localComments.length} comments
             </button>
          )}
 
-         {/* INLINE COMMENTS (Now uses local state) */}
+         {/* PREVIEW LATEST COMMENTS */}
          <div className="space-y-1 mb-3">
             {latestComments.map(comment => (
                 <div key={comment.id} className="text-sm text-white/80 truncate">
@@ -209,7 +212,7 @@ export default function FeedCard({
             ))}
          </div>
 
-         {/* INPUT BAR */}
+         {/* INPUT TRIGGER */}
          <div onClick={() => setShowComments(true)} className="flex items-center gap-3 pt-4 border-t border-white/10 cursor-pointer group/input">
              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/5"></div>
              <div className="flex-1 text-white/30 text-sm group-hover/input:text-white/50 transition-colors">Add a comment...</div>
@@ -217,7 +220,7 @@ export default function FeedCard({
          </div>
       </div>
 
-      {/* DRAWER */}
+      {/* COMMENT DRAWER */}
       <AnimatePresence>
         {showComments && (
           <motion.div 
@@ -228,9 +231,9 @@ export default function FeedCard({
           >
              <div className="p-5">
                <CommentSection 
-                  postId={id} 
-                  comments={localComments} // Pass the local state
-                  onPostComment={handlePostComment}
+                 postId={id} 
+                 comments={localComments} // Passes the updated list
+                 onPostComment={handlePostComment}
                />
              </div>
           </motion.div>

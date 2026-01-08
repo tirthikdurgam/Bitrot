@@ -5,8 +5,8 @@ import { Disc3, AlertTriangle } from "lucide-react"
 
 export default function EmptyFeedState() {
   return (
-    // CHANGED: h-full ensures it takes the parent's calculated height (100vh - 4rem)
-    <div className="w-full h-full relative bg-black overflow-hidden flex flex-col items-center justify-center group select-none">
+    // 1. ADDED 'font-montserrat' to the parent container
+    <div className="w-full h-full relative bg-black overflow-hidden flex flex-col items-center justify-center group select-none font-montserrat">
       
       {/* 1. BACKGROUND NOISE */}
       <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none" />
@@ -18,7 +18,7 @@ export default function EmptyFeedState() {
         transition={{ duration: 6, ease: "linear", repeat: Infinity }}
       />
       
-      {/* 3. CORNER BRACKETS (Flush with edges) */}
+      {/* 3. CORNER BRACKETS */}
       <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-white/20 group-hover:border-[#0066FF] transition-colors duration-500" />
       <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-white/20 group-hover:border-[#0066FF] transition-colors duration-500" />
       <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-white/20 group-hover:border-[#0066FF] transition-colors duration-500" />
@@ -41,7 +41,8 @@ export default function EmptyFeedState() {
             <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white uppercase glitch-text" data-text="NO_SIGNAL">
                 NO SIGNAL
             </h2>
-            <p className="text-xs font-mono text-[#0066FF] tracking-[0.4em] uppercase animate-pulse">
+            {/* 2. REMOVED 'font-mono' so this text also uses Montserrat */}
+            <p className="text-xs font-bold text-[#0066FF] tracking-[0.4em] uppercase animate-pulse">
                 feed connection lost
             </p>
         </div>
