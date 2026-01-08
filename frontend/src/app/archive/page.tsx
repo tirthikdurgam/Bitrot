@@ -60,7 +60,7 @@ export default function ArchivePage() {
       <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
         <div className="mb-12 border-b border-white/10 pb-6">
             <h1 className="font-courier text-3xl font-bold tracking-widest text-white mb-2">
-                &gt; SYSTEM_ARCHIVE
+                SYSTEM ARCHIVE
             </h1>
             <p className="font-montserrat text-white/50 text-sm">
                 A permanent collection of data lost to entropy. These files are unrecoverable.

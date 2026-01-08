@@ -1,113 +1,210 @@
 "use client"
 
-import Navbar from "@/components/navbar"
-import { motion } from "framer-motion"
+import Link from "next/link"
+import { motion, Variants } from "framer-motion"
+import { ArrowLeft, Upload, Activity, Archive, Terminal, Cpu, Database, Network } from "lucide-react"
 
 export default function AboutPage() {
+  
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { staggerChildren: 0.15 }
+    }
+  }
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { type: "spring", damping: 20 } 
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#050505] text-white">
-      <Navbar />
+    <main className="min-h-screen bg-[#050505] text-white font-montserrat relative overflow-hidden selection:bg-[#0066FF] selection:text-white pb-20">
       
-      <div className="max-w-4xl mx-auto px-6 pt-32 pb-12">
+      {/* 1. BACKGROUND LAYER */}
+      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#0066FF]/5 rounded-full blur-[150px] pointer-events-none" />
+
+      {/* 2. LIVE DATA TICKER (Top Bar) - Now in Montserrat */}
+      <div className="w-full h-8 bg-[#0066FF]/10 border-b border-[#0066FF]/20 flex items-center overflow-hidden whitespace-nowrap">
+        <motion.div 
+            animate={{ x: ["0%", "-50%"] }} 
+            transition={{ duration: 20, ease: "linear", repeat: Infinity }}
+            className="flex items-center gap-12 text-[10px] text-[#0066FF] tracking-[0.2em] uppercase font-bold px-4"
+        >
+            <span>/// SYSTEM_STATUS: ONLINE</span>
+            <span>/// ENTROPY_LEVEL: 84%</span>
+            <span>/// NODES_ACTIVE: 4,092</span>
+            <span>/// LAST_PURGE: 12m AGO</span>
+            <span>/// PROTOCOL_V2.0_ENGAGED</span>
+            <span>/// SECURE_CONNECTION_ESTABLISHED</span>
+             {/* Duplicate for seamless loop */}
+            <span>/// SYSTEM_STATUS: ONLINE</span>
+            <span>/// ENTROPY_LEVEL: 84%</span>
+            <span>/// NODES_ACTIVE: 4,092</span>
+            <span>/// LAST_PURGE: 12m AGO</span>
+            <span>/// PROTOCOL_V2.0_ENGAGED</span>
+            <span>/// SECURE_CONNECTION_ESTABLISHED</span>
+        </motion.div>
+      </div>
+
+      {/* 3. MAIN CONTENT CONTAINER */}
+      <div className="max-w-6xl mx-auto px-6 pt-12 relative z-10">
         
-        {/* Header */}
+        {/* NAV BACK */}
+        <Link href="/" className="inline-flex items-center gap-2 text-white/40 hover:text-[#0066FF] transition-colors mb-16 group">
+            <div className="p-2 border border-white/10 rounded-full group-hover:border-[#0066FF] transition-colors">
+                 <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+            </div>
+            <span className="text-xs tracking-widest uppercase font-bold group-hover:text-white transition-colors">Return_to_Feed</span>
+        </Link>
+
         <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-16 border-b border-white/10 pb-8"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-20"
         >
-            <h1 className="font-courier text-4xl font-bold text-[#00FF41] mb-4 tracking-widest">
-                {`> SYSTEM_MANIFESTO`}
-            </h1>
-            <p className="font-montserrat text-xl text-white/80 leading-relaxed">
-                The internet promised us permanence. It was a lie.<br />
-                BitRot introduces <span className="text-white font-bold">digital entropy</span> to the web.
-            </p>
-        </motion.div>
 
-        {/* Content Grid */}
-        <div className="grid md:grid-cols-2 gap-12">
-            
-            {/* Column 1: The Philosophy */}
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="space-y-8"
-            >
-                <div>
-                    <h2 className="font-courier text-lg font-bold text-white mb-3 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-[#00FF41]"></span>
-                        THE PROBLEM
-                    </h2>
-                    <p className="font-montserrat text-white/60 text-sm leading-6">
-                        We hoard data. Screenshots, memes, and memories pile up in cloud servers, 
-                        losing their value because they are infinite. When everything lasts forever, 
-                        nothing feels precious.
+            {/* --- HERO: MANIFESTO --- */}
+            <motion.div variants={itemVariants} className="relative">
+                {/* Decorative brackets */}
+                <div className="absolute -top-6 -left-6 w-12 h-12 border-t-2 border-l-2 border-white/10" />
+                <div className="absolute -bottom-6 -right-6 w-12 h-12 border-b-2 border-r-2 border-white/10" />
+                
+                <h1 className="text-6xl md:text-8xl font-black tracking-tighter uppercase mb-8 leading-[0.85] glitch-text" data-text="DIGITAL ENTROPY">
+                    DIGITAL <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#0066FF]">ENTROPY</span>
+                </h1>
+                
+                <div className="flex flex-col md:flex-row gap-12 items-start border-l-2 border-[#0066FF] pl-8">
+                    <p className="text-xl md:text-2xl text-white/80 font-medium max-w-2xl leading-relaxed">
+                        The internet promised permanence. <span className="text-white bg-[#0066FF]/20 px-1">It was a lie.</span>
+                        <br />
+                        BitLoss introduces biological decay to digital files.
                     </p>
-                </div>
-
-                <div>
-                    <h2 className="font-courier text-lg font-bold text-white mb-3 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-[#00FF41]"></span>
-                        THE SOLUTION
-                    </h2>
-                    <p className="font-montserrat text-white/60 text-sm leading-6">
-                        BitLoss enforces scarcity through destruction. Every interaction damages the file. 
-                        To view an image is to contribute to its death.
-                    </p>
+                    
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4 text-xs font-bold tracking-wider text-white/40 uppercase">
+                            <Cpu size={14} className="text-[#0066FF]" />
+                            <span>PROCESSING_CORE: ACTIVE</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs font-bold tracking-wider text-white/40 uppercase">
+                            <Database size={14} className="text-[#0066FF]" />
+                            <span>DATABASE_SHARDS: OPTIMIZED</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs font-bold tracking-wider text-white/40 uppercase">
+                            <Network size={14} className="text-[#0066FF]" />
+                            <span>P2P_MESH: SYNCED</span>
+                        </div>
+                    </div>
                 </div>
             </motion.div>
 
-            {/* Column 2: The Rules */}
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="bg-white/5 border border-white/10 p-8 rounded-lg"
-            >
-                <h3 className="font-courier text-sm font-bold text-white/50 mb-6 tracking-widest">
-                    OPERATIONAL_LOGIC
-                </h3>
+            {/* --- THE PIPELINE (Visual Logic) --- */}
+            <motion.div variants={itemVariants} className="relative bg-white/[0.02] border border-white/10 rounded-xl overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02]" />
+                
+                {/* Header */}
+                <div className="p-8 border-b border-white/10 flex justify-between items-center bg-black/40">
+                    <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <Terminal size={24} className="text-[#0066FF]" />
+                        Operational_Logic
+                    </h3>
+                    <span className="text-[10px] text-[#0066FF] border border-[#0066FF]/30 px-2 py-1 rounded font-bold tracking-wider">
+                        SYS_EXEC_MODE
+                    </span>
+                </div>
 
-                <ul className="space-y-6">
-                    <li className="flex gap-4">
-                        <span className="font-courier text-[#00FF41] font-bold">01</span>
-                        <div>
-                            <strong className="block font-montserrat text-white text-sm">Upload</strong>
-                            <span className="text-xs text-white/50">Artifacts enter the system at 100% Integrity.</span>
+                {/* The Flowchart */}
+                <div className="p-8 md:p-16 relative">
+                    {/* The Connecting Line */}
+                    <div className="hidden md:block absolute top-[50%] left-0 right-0 h-[2px] bg-white/10 -translate-y-1/2 z-0">
+                        {/* Animated Signal Packet */}
+                        <motion.div 
+                            className="w-32 h-[2px] bg-gradient-to-r from-transparent via-[#0066FF] to-transparent shadow-[0_0_20px_#0066FF]"
+                            animate={{ x: ["-100%", "500%"] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
+                        
+                        {/* STEP 1 */}
+                        <div className="group bg-[#050505] border border-white/10 p-6 hover:border-[#0066FF] transition-colors duration-300 relative">
+                             <div className="absolute -top-3 left-6 bg-[#050505] px-2 text-[#0066FF] text-xs font-black tracking-widest">01 // INPUT</div>
+                             <div className="w-12 h-12 bg-[#0066FF]/10 flex items-center justify-center rounded-full mb-4 group-hover:scale-110 transition-transform">
+                                 <Upload size={20} className="text-[#0066FF]" />
+                             </div>
+                             <h4 className="text-white font-bold text-lg mb-2 uppercase tracking-wide">Ingest</h4>
+                             <p className="text-white/40 text-xs font-medium leading-relaxed">
+                                Artifacts enter the system at 100% integrity. Pristine, but vulnerable.
+                             </p>
                         </div>
-                    </li>
-                    <li className="flex gap-4">
-                        <span className="font-courier text-[#00FF41] font-bold">02</span>
-                        <div>
-                            <strong className="block font-montserrat text-white text-sm">Degrade</strong>
-                            <span className="text-xs text-white/50">Popularity equals damage. High traffic accelerates compression algorithms.</span>
+
+                        {/* STEP 2 */}
+                        <div className="group bg-[#050505] border border-white/10 p-6 hover:border-white transition-colors duration-300 relative">
+                             <div className="absolute -top-3 left-6 bg-[#050505] px-2 text-white/50 text-xs font-black tracking-widest">02 // PROCESS</div>
+                             <div className="w-12 h-12 bg-white/5 flex items-center justify-center rounded-full mb-4 group-hover:scale-110 transition-transform">
+                                 <Activity size={20} className="text-white" />
+                             </div>
+                             <h4 className="text-white font-bold text-lg mb-2 uppercase tracking-wide">Decay</h4>
+                             <p className="text-white/40 text-xs font-medium leading-relaxed">
+                                Each view triggers a compression algorithm. Popularity equals destruction.
+                             </p>
                         </div>
-                    </li>
-                    <li className="flex gap-4">
-                        <span className="font-courier text-[#00FF41] font-bold">03</span>
-                        <div>
-                            <strong className="block font-montserrat text-white text-sm">Perish</strong>
-                            <span className="text-xs text-white/50">At 0% Integrity, the file is moved to the Archive. It can never be restored.</span>
+
+                        {/* STEP 3 */}
+                        <div className="group bg-[#050505] border border-white/10 p-6 hover:border-red-500 transition-colors duration-300 relative">
+                             <div className="absolute -top-3 left-6 bg-[#050505] px-2 text-red-500 text-xs font-black tracking-widest">03 // TERMINATE</div>
+                             <div className="w-12 h-12 bg-red-900/10 flex items-center justify-center rounded-full mb-4 group-hover:scale-110 transition-transform">
+                                 <Archive size={20} className="text-red-500" />
+                             </div>
+                             <h4 className="text-white font-bold text-lg mb-2 uppercase tracking-wide">Purge</h4>
+                             <p className="text-white/40 text-xs font-medium leading-relaxed">
+                                At 0% integrity, the file is corrupted beyond recognition and archived forever.
+                             </p>
                         </div>
-                    </li>
-                </ul>
+
+                    </div>
+                </div>
             </motion.div>
 
-        </div>
-
-        {/* Footer / Credits */}
-        <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="mt-20 pt-8 border-t border-white/10 text-center"
-        >
-            <p className="font-courier text-xs text-white/30">
-                SYSTEM_VERSION: 1.0.0 // STATUS: UNSTABLE
-            </p>
         </motion.div>
+
+        {/* GLITCH CSS */}
+        <style jsx>{`
+            .glitch-text { position: relative; }
+            .glitch-text::before, .glitch-text::after {
+              content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.8;
+            }
+            .glitch-text::before {
+              color: #0066FF; z-index: -1; animation: glitch-anim-1 3s infinite linear alternate-reverse;
+            }
+            .glitch-text::after {
+              color: #ffffff; z-index: -2; animation: glitch-anim-2 2s infinite linear alternate-reverse;
+            }
+            @keyframes glitch-anim-1 {
+              0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 0); }
+              20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 0); }
+              40% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, 0); }
+              60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, 0); }
+              80% { clip-path: inset(30% 0 20% 0); transform: translate(-2px, 0); }
+              100% { clip-path: inset(10% 0 60% 0); transform: translate(2px, 0); }
+            }
+            @keyframes glitch-anim-2 {
+              0% { clip-path: inset(10% 0 60% 0); transform: translate(2px, 0); }
+              20% { clip-path: inset(80% 0 5% 0); transform: translate(-2px, 0); }
+              40% { clip-path: inset(30% 0 20% 0); transform: translate(2px, 0); }
+              60% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, 0); }
+              80% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 0); }
+              100% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 0); }
+            }
+        `}</style>
       </div>
     </main>
   )
