@@ -66,7 +66,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/upload", {
+      const res = await fetch("https://bitrot.onrender.com/upload", {
         method: "POST",
         body: formData,
       })
