@@ -208,7 +208,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     type="text"
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Add a public description..."
+                    placeholder="Add a public description"
                     className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-white/10 focus:border-white/30 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-white/20 outline-none transition-all shadow-lg focus:shadow-white/5 font-medium"
                   />
                 </div>
@@ -222,7 +222,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                       <textarea
                         value={secret}
                         onChange={(e) => setSecret(e.target.value)}
-                        placeholder="Enter hidden data (will be lost upon decay)..."
+                        placeholder="Enter hidden data (will be lost upon decay)"
                         className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-white/10 focus:border-white/30 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-white/20 outline-none transition-all shadow-lg focus:shadow-white/5 min-h-[120px] resize-none font-medium custom-scrollbar"
                       />
                       <div className="absolute top-4 right-4 pointer-events-none">

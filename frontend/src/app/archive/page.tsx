@@ -1,43 +1,50 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
+import { motion, Variants } from "framer-motion"
+import Link from "next/link"
 import Image from "next/image"
-import Navbar from "@/components/navbar"
+import { ArrowLeft, AlertTriangle, FileX, Database, Search } from "lucide-react"
 
 export default function ArchivePage() {
   const [archiveItems, setArchiveItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // FIX 1: REMOVE THE MANUAL URL SELECTION
-  // We don't need API_BASE anymore because we will use the internal "/api" route.
-  
+  // 1. ANIMATION VARIANTS
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1, 
+      transition: { staggerChildren: 0.1 } 
+    }
+  }
+
+  const cardVariants: Variants = {
+    hidden: { opacity: 0, scale: 0.95 },
+    visible: { 
+      opacity: 1, 
+      scale: 1,
+      transition: { type: "spring", damping: 20 } 
+    }
+  }
+
+  // 2. DATA FETCHING
   useEffect(() => {
     const fetchArchive = async () => {
       try {
-        console.log(`Fetching archive from internal proxy...`) 
-        
-        // FIX 2: USE THE RELATIVE PATH
-        // This hits "https://bitloss.vercel.app/api/archive"
-        // Next.js then invisibly forwards this to Render.
-        // No CORS errors!
         const res = await fetch("/api/archive", { 
             cache: 'no-store',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         })
         
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
         
         const rawData = await res.json()
-        
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
-        // Transform data to use Supabase URLs directly
         const formattedData = rawData.map((item: any) => ({
           ...item,
-          fullUrl: item.storage_path 
+          image: item.storage_path 
             ? `${supabaseUrl}/storage/v1/object/public/bitloss-images/${item.storage_path}`
             : item.image 
         }))
@@ -51,71 +58,175 @@ export default function ArchivePage() {
     }
 
     fetchArchive()
-  }, []) 
+  }, [])
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white">
-      <Navbar />
+    <main className="min-h-screen bg-[#050505] text-white font-montserrat relative overflow-hidden selection:bg-red-500 selection:text-white pb-20">
       
-      <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
-        <div className="mb-12 border-b border-white/10 pb-6">
-            <h1 className="font-courier text-3xl font-bold tracking-widest text-white mb-2">
-                SYSTEM ARCHIVE
-            </h1>
-            <p className="font-montserrat text-white/50 text-sm">
-                A permanent collection of data lost to entropy. These files are unrecoverable.
-            </p>
+      {/* 3. BACKGROUND LAYERS */}
+      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none" />
+      <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-red-900/5 rounded-full blur-[150px] pointer-events-none" />
+
+      {/* 4. TICKER */}
+      <div className="w-full h-8 bg-[#050505] border-b border-white/10 flex items-center overflow-hidden whitespace-nowrap z-20 relative">
+        <motion.div 
+            animate={{ x: ["0%", "-50%"] }} 
+            transition={{ duration: 30, ease: "linear", repeat: Infinity }}
+            className="flex items-center gap-12 text-[10px] text-white/30 tracking-[0.2em] uppercase font-bold px-4"
+        >
+            <span className="text-red-500">/// WARNING: DATA_CORRUPTION_DETECTED</span>
+            <span>/// ARCHIVE_MODE: READ_ONLY</span>
+            <span>/// RECOVERY_CHANCE: 0%</span>
+            <span>/// {archiveItems.length}_FILES_LOST</span>
+            <span className="text-[#0066FF]">/// SYSTEM_INTEGRITY: STABLE</span>
+            <span className="text-red-500">/// WARNING: DATA_CORRUPTION_DETECTED</span>
+            <span>/// ARCHIVE_MODE: READ_ONLY</span>
+            <span>/// RECOVERY_CHANCE: 0%</span>
+            <span>/// {archiveItems.length}_FILES_LOST</span>
+            <span className="text-[#0066FF]">/// SYSTEM_INTEGRITY: STABLE</span>
+        </motion.div>
+      </div>
+
+      {/* 5. MAIN CONTENT */}
+      <div className="max-w-7xl mx-auto px-6 pt-12 relative z-10">
+        
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-8">
+            <div>
+                <Link href="/" className="inline-flex items-center gap-2 text-white/40 hover:text-[#0066FF] transition-colors mb-6 group">
+                    <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                    <span className="text-xs tracking-widest uppercase font-bold">Return to Feed</span>
+                </Link>
+                
+                <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase mb-4 glitch-text" data-text="SYSTEM ARCHIVE">
+                    SYSTEM <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-red-600">ARCHIVE</span>
+                </h1>
+                <p className="text-white/50 text-sm font-medium max-w-lg leading-relaxed">
+                    A permanent collection of data lost to entropy. These files have reached <span className="text-red-500 font-bold">0% Integrity</span> and are unrecoverable.
+                </p>
+            </div>
+
+            {/* STAT BLOCK */}
+            <div className="flex gap-8 border-l border-white/10 pl-8">
+                <div>
+                    <div className="text-[10px] text-white/30 font-bold tracking-widest uppercase mb-1">Total_Casualties</div>
+                    <div className="text-3xl font-black text-white">{archiveItems.length}</div>
+                </div>
+                <div>
+                    <div className="text-[10px] text-white/30 font-bold tracking-widest uppercase mb-1">Storage_Used</div>
+                    <div className="text-3xl font-black text-white">128<span className="text-sm text-white/50">TB</span></div>
+                </div>
+            </div>
         </div>
 
+        {/* SEARCH BAR */}
+        <div className="w-full h-12 border-y border-white/10 flex items-center justify-between mb-12 bg-white/[0.02]">
+            <div className="flex items-center gap-3 px-4 h-full border-r border-white/10 w-full md:w-auto">
+                <Search size={14} className="text-white/30" />
+                <span className="text-xs font-bold text-white/30 tracking-widest uppercase">SEARCH HASH ID...</span>
+            </div>
+            <div className="hidden md:flex items-center gap-6 px-6 h-full text-[10px] font-bold tracking-widest text-white/30 uppercase">
+                <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"/> TERMINATED</span>
+                <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-white/20 rounded-full"/> ARCHIVED</span>
+            </div>
+        </div>
+
+        {/* 6. THE GRID */}
         {loading ? (
-            <div className="text-center py-20 font-courier text-[#00FF41] animate-pulse">
-                LOADING DELETED_DATA...
-            </div>
+             <div className="w-full h-64 flex flex-col items-center justify-center gap-4">
+                 <div className="w-8 h-8 border-2 border-white/10 border-t-[#0066FF] rounded-full animate-spin" />
+                 <div className="text-xs font-bold tracking-widest text-[#0066FF] animate-pulse">RETRIEVING_CORRUPTED_SECTORS...</div>
+             </div>
+        ) : archiveItems.length === 0 ? (
+             <div className="w-full h-64 border border-white/10 bg-white/[0.02] flex flex-col items-center justify-center text-white/30">
+                 <Database size={32} className="mb-4 opacity-50" />
+                 <span className="text-xs font-bold tracking-widest uppercase">NO_CASUALTIES_FOUND</span>
+             </div>
         ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {archiveItems.map((item, index) => (
-                <motion.div
-                key={item.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-                className="aspect-square rounded-lg overflow-hidden border border-white/10 hover:border-[#FF0000] transition-all cursor-pointer group relative bg-black shadow-lg"
-                >
-                <Image
-                    src={item.fullUrl}
-                    alt={`Archived artifact ${item.id}`}
-                    fill
-                    className="object-cover group-hover:scale-110 transition-transform duration-500 filter grayscale contrast-150 brightness-50 hover:grayscale-0 hover:contrast-100 hover:brightness-100"
-                    // FIX 3: REMOVED unoptimized={true}
-                    // This allows Vercel to compress the images for you = FASTER LOADING
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                />
+            <motion.div 
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8"
+            >
+                {archiveItems.map((post) => (
+                    <motion.div 
+                        key={post.id} 
+                        variants={cardVariants}
+                        className="group relative aspect-[4/5] bg-black border border-white/10 overflow-hidden hover:border-red-500/50 transition-colors duration-500"
+                    >
+                        
+                        {/* IMAGE */}
+                        <Image 
+                            src={post.image} 
+                            alt="Dead File" 
+                            fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            className="object-cover grayscale contrast-125 brightness-75 group-hover:scale-105 group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 transition-all duration-700"
+                        />
+                        
+                        {/* NOISE OVERLAY */}
+                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80 pointer-events-none" />
 
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-                    <span className="text-sm font-courier font-bold text-[#FF0000] opacity-0 group-hover:opacity-100 transition-opacity tracking-[0.2em] bg-black/80 px-2 py-1 border border-red-500/50">
-                    CORRUPTED
-                    </span>
-                    <span className="text-[10px] font-montserrat text-white/50 opacity-0 group-hover:opacity-100 mt-2">
-                        User: @{item.username}
-                    </span>
-                </div>
+                        {/* BADGE */}
+                        <div className="absolute top-3 right-3 bg-red-500/10 border border-red-500/30 backdrop-blur-md px-2 py-1 flex items-center gap-2">
+                             <FileX size={10} className="text-red-500" />
+                             <span className="text-[8px] font-black text-red-500 tracking-widest uppercase">CORRUPT</span>
+                        </div>
 
-                <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-2 text-center border-t border-white/10 group-hover:border-[#FF0000]/50 transition-colors">
-                    <div className="flex justify-between items-center px-2">
-                        <span className="text-[10px] font-courier font-bold text-[#FF0000]">INTEGRITY: 0%</span>
-                        <span className="text-[10px] font-courier text-white/30">GEN: {item.generations}</span>
-                    </div>
-                </div>
-                </motion.div>
-            ))}
-            </div>
+                        {/* HOVER DETAILS */}
+                        <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                            {/* REPLACED font-mono WITH font-bold + tracking-wider */}
+                            <div className="text-[10px] text-red-500 mb-1 flex items-center gap-2 font-bold tracking-wider">
+                                <AlertTriangle size={10} />
+                                INTEGRITY: 0%
+                            </div>
+                            <div className="text-xs font-bold text-white uppercase tracking-wider mb-2 line-clamp-1">
+                                {post.caption || "UNKNOWN_DATA"}
+                            </div>
+                            <div className="h-[1px] w-full bg-white/20 mb-2 group-hover:bg-red-500/50 transition-colors" />
+                            {/* REPLACED font-mono WITH font-bold + tracking-wider */}
+                            <div className="flex justify-between text-[8px] font-bold tracking-wider text-white/40 uppercase">
+                                <span>@{post.username || "ANON"}</span>
+                                <span>GEN: {post.generations}</span>
+                            </div>
+                        </div>
+
+                    </motion.div>
+                ))}
+            </motion.div>
         )}
 
-        {!loading && archiveItems.length === 0 && (
-            <div className="text-center py-20 text-white/30 font-courier border border-dashed border-white/10 rounded-lg">
-                NO ARTIFACTS FOUND. SYSTEM CLEAN.
-            </div>
-        )}
+        {/* GLITCH ANIMATION STYLES */}
+        <style jsx>{`
+            .glitch-text { position: relative; }
+            .glitch-text::before, .glitch-text::after {
+              content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.8;
+            }
+            .glitch-text::before {
+              color: #ff0000; z-index: -1; animation: glitch-anim-1 3s infinite linear alternate-reverse;
+            }
+            .glitch-text::after {
+              color: #0066FF; z-index: -2; animation: glitch-anim-2 2s infinite linear alternate-reverse;
+            }
+            @keyframes glitch-anim-1 {
+              0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 0); }
+              20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 0); }
+              40% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, 0); }
+              60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, 0); }
+              80% { clip-path: inset(30% 0 20% 0); transform: translate(-2px, 0); }
+              100% { clip-path: inset(10% 0 60% 0); transform: translate(2px, 0); }
+            }
+            @keyframes glitch-anim-2 {
+              0% { clip-path: inset(10% 0 60% 0); transform: translate(2px, 0); }
+              20% { clip-path: inset(80% 0 5% 0); transform: translate(-2px, 0); }
+              40% { clip-path: inset(30% 0 20% 0); transform: translate(2px, 0); }
+              60% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, 0); }
+              80% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 0); }
+              100% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 0); }
+            }
+        `}</style>
       </div>
     </main>
   )

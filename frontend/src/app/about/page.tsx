@@ -61,7 +61,7 @@ export default function AboutPage() {
             <div className="p-2 border border-white/10 rounded-full group-hover:border-[#0066FF] transition-colors">
                  <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
             </div>
-            <span className="text-xs tracking-widest uppercase font-bold group-hover:text-white transition-colors">Return_to_Feed</span>
+            <span className="text-xs tracking-widest uppercase font-bold group-hover:text-white transition-colors">Return to Feed</span>
         </Link>
 
         <motion.div 

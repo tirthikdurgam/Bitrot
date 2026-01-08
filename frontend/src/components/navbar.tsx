@@ -1,9 +1,9 @@
 "use client"
 
-import { Upload, User, LogIn } from "lucide-react"
+import { Upload, User, LogIn, Terminal } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { createClient } from "@/utils/supabase/client" // Import Supabase
+import { createClient } from "@/utils/supabase/client"
 import UploadModal from "./upload-modal"
 import KnixcsLogo from "./bitloss-logo"
 
@@ -20,7 +20,7 @@ export default function Navbar() {
     }
     getUser()
 
-    // Real-time listener: Updates navbar instantly when you login/logout
+    // Real-time listener
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
        setUser(session?.user ?? null)
     })
@@ -32,40 +32,55 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[#050505]/80 border-b border-white/5">
-        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[#050505]/90 border-b border-white/10 font-montserrat">
+        
+        {/* Top Decorative Line (System Status) */}
+        <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-[#0066FF]/50 to-transparent opacity-50" />
+
+        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
           
-          {/* 1. LOGO */}
-          <div className="flex items-center hover:opacity-80 transition-opacity">
-            <KnixcsLogo /> 
+          {/* 1. LOGO & VERSION */}
+          <div className="flex items-center gap-4">
+            <Link href="/" className="hover:opacity-80 transition-opacity">
+              <KnixcsLogo /> 
+            </Link>
+            <div className="hidden sm:flex items-center gap-2 px-2 py-0.5 border border-white/10 bg-white/5 text-[9px] font-bold tracking-widest text-white/40 uppercase rounded-sm">
+                <Terminal size={8} />
+                <span>SYS_V.2.0</span>
+            </div>
           </div>
 
           {/* 2. CENTER MENU */}
-          <div className="hidden md:flex items-center gap-12">
-            <Link 
-                href="/archive"
-                className="font-montserrat text-[12px] font-bold tracking-[0.2em] text-white/50 hover:text-white transition-colors uppercase"
-            >
-                Archive
-            </Link>
-            <Link 
-                href="/about"
-                className="font-montserrat text-[12px] font-bold tracking-[0.2em] text-white/50 hover:text-white transition-colors uppercase"
-            >
-                About
-            </Link>
+          <div className="hidden md:flex items-center h-full">
+            <NavLink href="/">FEED</NavLink>
+            <NavSeparator />
+            <NavLink href="/archive">ARCHIVE</NavLink>
+            <NavSeparator />
+            <NavLink href="/about">ABOUT</NavLink>
           </div>
 
           {/* 3. RIGHT ACTIONS */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
             
-            {/* Upload Button */}
+            {/* System Status Indicator (Visual only) */}
+            <div className="hidden lg:flex flex-col items-end">
+                <span className="text-[8px] font-bold text-[#0066FF] tracking-widest uppercase flex items-center gap-1">
+                    <div className="w-1 h-1 bg-[#0066FF] rounded-full animate-pulse" />
+                    ONLINE
+                </span>
+                <span className="text-[8px] text-white/30 tracking-wider">LATENCY: 12ms</span>
+            </div>
+
+            <div className="h-8 w-[1px] bg-white/10 hidden lg:block" />
+
+            {/* Upload Button (Updated: rounded-full) */}
             <button 
               onClick={() => setIsUploadOpen(true)} 
-              className="group flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-full hover:bg-white/90 transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+              // CHANGED: added 'rounded-full' to the class list
+              className="group flex items-center gap-2 px-5 py-2 border border-[#0066FF]/50 text-[#0066FF] bg-[#0066FF]/5 hover:bg-[#0066FF] hover:text-white transition-all duration-300 rounded-full"
             >
-              <Upload size={16} strokeWidth={2.5} className="group-hover:-translate-y-0.5 transition-transform" /> 
-              <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest font-montserrat">Upload</span>
+              <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform" /> 
+              <span className="text-[10px] font-bold uppercase tracking-widest">Upload Data</span>
             </button>
 
             {/* DYNAMIC AUTH BUTTON */}
@@ -73,23 +88,22 @@ export default function Navbar() {
                 // LOGGED IN: Profile Button
                 <Link 
                     href="/profile" 
-                    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center border border-white/20 hover:border-white/50 transition-all overflow-hidden"
+                    className="w-9 h-9 border border-white/20 bg-white/5 flex items-center justify-center hover:border-[#0066FF] hover:shadow-[0_0_10px_#0066FF] transition-all overflow-hidden group rounded-full"
                 >
-                   {/* If Google provides an avatar, show it. Otherwise show Icon */}
-                   {user.user_metadata.avatar_url ? (
-                       <img src={user.user_metadata.avatar_url} alt="User" className="w-full h-full object-cover" />
-                   ) : (
-                       <User size={16} className="text-white" />
-                   )}
+                    {user.user_metadata.avatar_url ? (
+                        <img src={user.user_metadata.avatar_url} alt="User" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                    ) : (
+                        <User size={14} className="text-white/60 group-hover:text-white" />
+                    )}
                 </Link>
             ) : (
                 // LOGGED OUT: Login Button
                 <Link 
                     href="/login"
-                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 hover:border-white/30 hover:bg-white/10 transition-all group"
-                    title="Sign In"
+                    className="flex items-center gap-2 text-[10px] font-bold text-white/50 hover:text-white uppercase tracking-widest transition-colors group"
                 >
-                   <LogIn size={16} className="text-white/60 group-hover:text-white transition-colors" />
+                    <span>LOGIN</span>
+                    <LogIn size={14} className="group-hover:translate-x-0.5 transition-transform" />
                 </Link>
             )}
 
@@ -104,4 +118,24 @@ export default function Navbar() {
       />
     </>
   )
+}
+
+// HELPER: Link Component
+function NavLink({ href, children }: { href: string, children: React.ReactNode }) {
+    return (
+        <Link 
+            href={href}
+            className="relative px-6 py-2 group overflow-hidden"
+        >
+            <span className="relative z-10 text-[11px] font-bold tracking-[0.2em] text-white/50 group-hover:text-white transition-colors uppercase">
+                {children}
+            </span>
+            <span className="absolute bottom-0 left-0 w-full h-[1px] bg-[#0066FF] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+        </Link>
+    )
+}
+
+// HELPER: Separator
+function NavSeparator() {
+    return <span className="text-white/10 text-[8px] font-mono">/</span>
 }
