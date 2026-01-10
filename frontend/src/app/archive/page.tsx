@@ -123,7 +123,7 @@ export default function ArchivePage() {
         <div className="w-full h-12 border-y border-white/10 flex items-center justify-between mb-12 bg-white/[0.02]">
             <div className="flex items-center gap-3 px-4 h-full border-r border-white/10 w-full md:w-auto">
                 <Search size={14} className="text-white/30" />
-                <span className="text-xs font-bold text-white/30 tracking-widest uppercase">SEARCH HASH ID...</span>
+                <span className="text-xs font-bold text-white/30 tracking-widest uppercase">SEARCH HASH ID</span>
             </div>
             <div className="hidden md:flex items-center gap-6 px-6 h-full text-[10px] font-bold tracking-widest text-white/30 uppercase">
                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"/> TERMINATED</span>
@@ -135,7 +135,7 @@ export default function ArchivePage() {
         {loading ? (
              <div className="w-full h-64 flex flex-col items-center justify-center gap-4">
                  <div className="w-8 h-8 border-2 border-white/10 border-t-[#0066FF] rounded-full animate-spin" />
-                 <div className="text-xs font-bold tracking-widest text-[#0066FF] animate-pulse">RETRIEVING_CORRUPTED_SECTORS...</div>
+                 <div className="text-xs font-bold tracking-widest text-[#0066FF] animate-pulse">RETRIEVING CORRUPTED SECTORS</div>
              </div>
         ) : archiveItems.length === 0 ? (
              <div className="w-full h-64 border border-white/10 bg-white/[0.02] flex flex-col items-center justify-center text-white/30">
@@ -183,7 +183,7 @@ export default function ArchivePage() {
                                 INTEGRITY: 0%
                             </div>
                             <div className="text-xs font-bold text-white uppercase tracking-wider mb-2 line-clamp-1">
-                                {post.caption || "UNKNOWN_DATA"}
+                                {post.caption || "UNKNOWN DATA"}
                             </div>
                             <div className="h-[1px] w-full bg-white/20 mb-2 group-hover:bg-red-500/50 transition-colors" />
                             {/* REPLACED font-mono WITH font-bold + tracking-wider */}
