@@ -182,7 +182,7 @@ def add_comment(post_id, username, content, integrity, parent_id=None):
             "post_id": post_id,
             "username": username,
             "content": content,
-            "integrity_snapshot": integrity,
+            "bit_integrity": integrity,
             "parent_id": parent_id
         }
         response = supabase.table("comments").insert(data).execute()

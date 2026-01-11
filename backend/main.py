@@ -330,7 +330,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 # Data to update in the database
                 image_update_data = {
                     "id": row['id'],
-                    "integrity_snapshot": new_integrity,
+                    "bit_integrity": new_integrity,
                     "current_quality": new_integrity, 
                     "last_viewed_timestamp": datetime.utcnow().isoformat(),
                     "witnesses": (row.get('witnesses') or 0) + 1,
@@ -378,7 +378,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 "username": p_author_name,
                 "avatar_url": p_author_av,
                 "image": img_url,
-                "bitIntegrity": row.get('integrity_snapshot', 100.0),
+                "bitIntegrity": row.get('bit_integrity', 100.0),
                 "generations": row.get('generations', 0),
                 "witnesses": row.get('witnesses', 0),
                 "caption": row.get("caption", ""),
@@ -393,12 +393,12 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             # Sync integrity and witness counts back to Supabase
             upsert_data = [{
                 "id": p['id'],
-                "integrity_snapshot": p.get('integrity_snapshot', 100.0),
-                "current_quality": p.get('integrity_snapshot', 100.0),
+                "bit_integrity": p.get('bit_integrity', 100.0),
+                "current_quality": p.get('bit_integrity', 100.0),
                 "last_viewed_timestamp": datetime.utcnow().isoformat(),
                 "witnesses": p.get('witnesses', 0),
-                "status": "decayed" if p.get('integrity_snapshot', 100.0) <= 0 else "active",
-                "is_archived": True if p.get('integrity_snapshot', 100.0) <= 0 else False
+                "status": "decayed" if p.get('bit_integrity', 100.0) <= 0 else "active",
+                "is_archived": True if p.get('bit_integrity', 100.0) <= 0 else False
             } for p in updated_posts]
             
             if upsert_data:
@@ -548,7 +548,7 @@ async def post_comment(request: Request, body: dict):
             "post_id": body['post_id'],
             "user_id": user['id'],
             "content": body['content'],
-            "integrity_snapshot": current_integrity,
+            "bit_integrity": current_integrity,
             "parent_id": parent_id
         }
         db.supabase.table("comments").insert(comment_payload).execute()
