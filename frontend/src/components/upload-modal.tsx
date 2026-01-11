@@ -68,6 +68,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         const { data: { session } } = await supabase.auth.getSession()
         
         if (!session?.user) {
+            alert("Session expired. Please login again.")
             router.push("/login")
             return
         }
@@ -75,32 +76,31 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         // 2. Prepare Form Data
         const formData = new FormData()
         formData.append("file", file)
-        
-        // Note: The backend now extracts the author from the TOKEN, 
-        // but we keep 'author' here just in case the backend expects the field to exist.
-        // We'll just pass a placeholder since the token is the source of truth.
-        formData.append("author", "secure_upload") 
         formData.append("caption", caption)
-        
         if (secret.trim()) {
             formData.append("secret", secret)
         }
 
-        // 3. Dynamic API URL
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+        // 3. Resolve API URL (Fixing the "Code Not Updating" issue)
+        // We strip any trailing slashes to prevent "http://url//upload" errors
+        let baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+        baseUrl = baseUrl.replace(/\/$/, "") 
+        const endpoint = `${baseUrl}/upload`
 
-        // 4. Send Request WITH AUTH HEADER
-        const res = await fetch(`${API_URL}/upload`, {
+        console.log("📡 Transmitting to:", endpoint) // <--- CHECK YOUR BROWSER CONSOLE FOR THIS
+
+        // 4. Send Request
+        const res = await fetch(endpoint, {
             method: "POST",
             headers: {
-                // Do NOT set 'Content-Type': 'multipart/form-data' manually here.
-                // The browser sets it automatically with the correct boundary for FormData.
                 "Authorization": `Bearer ${session.access_token}`
             },
             body: formData,
         })
         
         if (res.ok) {
+            const data = await res.json()
+            console.log("Upload success:", data)
             setFile(null)
             setPreview(null)
             setCaption("")
@@ -109,11 +109,17 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             onClose()
         } else {
             const errorData = await res.json()
-            throw new Error(errorData.detail || "Upload failed")
+            console.error("Server Error:", errorData)
+            throw new Error(errorData.detail || "Server rejected the file")
         }
     } catch (error: any) {
-        console.error("Upload failed:", error)
-        alert(`Transmission rejected: ${error.message}`)
+        console.error("Network/Client Error:", error)
+        // This specific error message helps identify if it's the network or the code
+        const msg = error.message === "Failed to fetch" 
+            ? "Cannot reach server. Check your network or API URL." 
+            : error.message
+        
+        alert(`Transmission rejected: ${msg}`)
     } finally {
         setIsUploading(false)
     }
@@ -274,4 +280,4 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       )}
     </AnimatePresence>
   )
-}
+} 
