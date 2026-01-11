@@ -225,7 +225,7 @@ async def upload_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/feed")
-async def get_feed(request: Request, background_tasks: BackgroundTasks):
+def get_feed(request: Request, background_tasks: BackgroundTasks):
     if not db.supabase: return []
 
     try:
@@ -495,7 +495,7 @@ def get_trending():
     return results
 
 @app.post("/comment")
-async def post_comment(request: Request, body: dict):
+def post_comment(request: Request, body: dict):
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Login required")
