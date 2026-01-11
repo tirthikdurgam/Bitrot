@@ -71,10 +71,8 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         return
     }
     
-    // --- FIX 1: FETCH REAL USERNAME FROM DB ---
+    // FETCH REAL USERNAME FROM DB
     let username = "Anonymous_Creator"
-    
-    // Query the 'users' table for the custom username
     const { data: profile } = await supabase
         .from('users')
         .select('username')
@@ -84,18 +82,14 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     if (profile?.username) {
         username = profile.username
     } else {
-        // Fallback only if DB fails
         username = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
         username = username.replace(/\s+/g, '_')
     }
 
     const formData = new FormData()
     formData.append("file", file)
-    formData.append("author", username) // Sends the correct custom username
+    formData.append("author", username)
     formData.append("caption", caption)
-    
-    // --- FIX 2: SEND USER ID ---
-    // This ensures the backend can link the image to the specific user UUID
     formData.append("user_id", user.id)
     
     if (secret.trim()) {
@@ -144,22 +138,26 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: "spring", damping: 30, stiffness: 400 }}
-            className="relative w-full max-w-5xl bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+            // MOBILE OPTIMIZATION 1: 
+            // - flex-col (Mobile) -> flex-row (Desktop)
+            // - max-h-[90vh] + overflow-y-auto (Handles scrolling on small screens)
+            className="relative w-full max-w-5xl bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[24px] md:rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row max-h-[90vh] overflow-y-auto md:overflow-visible"
           >
             
             <button
               type="button" 
               onClick={onClose}
-              className="absolute top-6 right-6 z-50 p-2 bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-colors rounded-full backdrop-blur-md cursor-pointer border border-white/5"
+              className="absolute top-4 right-4 md:top-6 md:right-6 z-50 p-2 bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-colors rounded-full backdrop-blur-md cursor-pointer border border-white/5"
             >
               <X size={20} />
             </button>
 
-            {/* LEFT PANEL */}
-            <div className={`w-full md:w-5/12 border-b md:border-b-0 md:border-r border-white/10 relative flex flex-col ${scrollbarHiddenClass} bg-white/[0.02]`}>
+            {/* LEFT PANEL: PREVIEW */}
+            {/* MOBILE OPTIMIZATION 2: h-64 on mobile (fixed height) -> h-auto on desktop */}
+            <div className={`w-full md:w-5/12 h-64 md:h-auto border-b md:border-b-0 md:border-r border-white/10 relative flex flex-col ${scrollbarHiddenClass} bg-white/[0.02] shrink-0`}>
               {preview ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative w-full h-full flex flex-col items-center justify-center p-8">
-                  <div className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-black/40">
+                  <div className="relative w-full h-full md:aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-black/40">
                       <Image 
                         src={preview} 
                         alt="Preview" 
@@ -171,9 +169,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="mt-6 text-xs font-bold text-white hover:text-black uppercase tracking-widest bg-white/10 hover:bg-white px-6 py-3 rounded-xl transition-all border border-white/10 backdrop-blur-md shadow-lg"
+                    className="absolute bottom-4 md:static md:mt-6 text-xs font-bold text-white hover:text-black uppercase tracking-widest bg-white/10 hover:bg-white px-6 py-3 rounded-xl transition-all border border-white/10 backdrop-blur-md shadow-lg"
                   >
-                    Replace Image
+                    Replace
                   </button>
                 </motion.div>
               ) : (
@@ -182,7 +180,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     animate={{ opacity: 1 }} 
                     className="w-full h-full flex flex-col"
                 >
-                    <div className="px-8 pt-8 pb-4 flex items-center gap-3">
+                    <div className="px-6 py-4 md:px-8 md:pt-8 md:pb-4 flex items-center gap-3">
                         <div className="p-2 bg-white/10 rounded-full text-white">
                             <CloudUpload size={20} />
                         </div>
@@ -197,21 +195,21 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                             onClick={() => fileInputRef.current?.click()}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={handleDrop}
-                            className="w-full h-full border-2 border-dashed border-white/10 rounded-3xl bg-white/[0.01] hover:bg-white/5 hover:border-white/20 transition-all cursor-pointer flex flex-col items-center justify-center gap-6 group relative overflow-hidden"
+                            className="w-full h-full border-2 border-dashed border-white/10 rounded-3xl bg-white/[0.01] hover:bg-white/5 hover:border-white/20 transition-all cursor-pointer flex flex-col items-center justify-center gap-4 md:gap-6 group relative overflow-hidden"
                         >
                              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/0 group-hover:via-white/5 transition-colors duration-500" />
 
-                            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:scale-110 group-hover:bg-white/10 group-hover:text-white transition-all z-10">
-                                <CloudUpload size={32} />
+                            <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:scale-110 group-hover:bg-white/10 group-hover:text-white transition-all z-10">
+                                <CloudUpload size={24} className="md:w-8 md:h-8" />
                             </div>
                             
                             <div className="text-center space-y-2 z-10">
-                                <p className="text-white font-bold text-sm">Drop your artifact here</p>
-                                <p className="text-white/30 text-[10px] uppercase tracking-wide font-medium">JPEG, PNG, WEBP — Max 50MB</p>
+                                <p className="text-white font-bold text-sm">Drop artifact here</p>
+                                <p className="text-white/30 text-[10px] uppercase tracking-wide font-medium">Max 50MB</p>
                             </div>
 
-                            <button type="button" className="px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black text-xs font-bold rounded-lg transition-all border border-white/10 shadow-lg mt-2 z-10 pointer-events-none">
-                                Browse Files
+                            <button type="button" className="px-4 py-2 md:px-6 md:py-2.5 bg-white/10 hover:bg-white text-white hover:text-black text-xs font-bold rounded-lg transition-all border border-white/10 shadow-lg mt-2 z-10 pointer-events-none">
+                                Browse
                             </button>
                         </div>
                     </div>
@@ -220,14 +218,15 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </div>
 
-            {/* RIGHT PANEL */}
-            <div className="w-full md:w-7/12 p-8 md:p-12 flex flex-col justify-center relative">
-               <div className="mb-10 relative z-10">
-                   <h2 className="text-4xl font-black text-white mb-2 tracking-tighter drop-shadow-lg">Create Artifact.</h2>
+            {/* RIGHT PANEL: FORM */}
+            {/* MOBILE OPTIMIZATION 3: Adjusted padding p-6 (mobile) -> p-12 (desktop) */}
+            <div className="w-full md:w-7/12 p-6 md:p-12 flex flex-col justify-center relative">
+               <div className="mb-6 md:mb-10 relative z-10">
+                   <h2 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tighter drop-shadow-lg">Create Artifact.</h2>
                    <p className="text-sm font-medium text-white/50">Inject a new memory into the decay cycle.</p>
                </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+              <form onSubmit={handleSubmit} className="space-y-6 relative z-10 pb-6 md:pb-0">
                 <div className="space-y-2 group">
                   <label className="flex items-center gap-2 text-xs font-bold text-white/40 uppercase tracking-widest pl-1 transition-colors group-focus-within:text-white">
                       <Type size={12} /> Signal Metadata
@@ -250,7 +249,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                         value={secret}
                         onChange={(e) => setSecret(e.target.value)}
                         placeholder="Enter hidden data (will be lost upon decay)"
-                        className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-white/10 focus:border-white/30 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-white/20 outline-none transition-all shadow-lg focus:shadow-white/5 min-h-[120px] resize-none font-medium custom-scrollbar"
+                        className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-white/10 focus:border-white/30 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-white/20 outline-none transition-all shadow-lg focus:shadow-white/5 min-h-[100px] md:min-h-[120px] resize-none font-medium custom-scrollbar"
                       />
                       <div className="absolute top-4 right-4 pointer-events-none">
                           <Lock size={16} className={secret ? "text-white" : "text-white/20"} />

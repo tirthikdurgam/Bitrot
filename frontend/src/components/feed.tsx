@@ -38,7 +38,6 @@ export default function Feed() {
       const rawData = await res.json()
       
       // 2. Define Base URLs
-      // IMPORTANT: Ensure this Env Var is set in Vercel!
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://iqtidkshavbicaecmxtd.supabase.co" 
       const renderBackendUrl = "https://bitrot.onrender.com"
 
@@ -52,11 +51,8 @@ export default function Feed() {
         } else if (row.image) {
             // Case B: Image is from Render Backend (Decayed)
             if (row.image.startsWith("http")) {
-                // It's already a full URL -> Use it
                 imageUrl = row.image
             } else {
-                // It's a relative path (e.g. "uploads/img.jpg") -> Prepend Render URL
-                // Remove leading slash if present to avoid double slashes
                 const cleanPath = row.image.startsWith("/") ? row.image.substring(1) : row.image
                 imageUrl = `${renderBackendUrl}/${cleanPath}`
             }
@@ -65,7 +61,6 @@ export default function Feed() {
         return {
           id: row.id,
           username: row.username,
-          // Add timestamp ?t=... to force browser to refresh the image if it changes
           image: `${imageUrl}?t=${row.generations}`,
           bitIntegrity: row.bitIntegrity, 
           generations: row.generations,
@@ -91,10 +86,14 @@ export default function Feed() {
     return () => clearInterval(interval)
   }, [])
 
-  const containerClass = posts.length === 0 ? "w-full" : "max-w-2xl mx-auto"
+  // MOBILE OPTIMIZATION 1: Use w-full to span the entire phone screen width
+  const containerClass = posts.length === 0 ? "w-full" : "w-full max-w-2xl mx-auto"
 
   return (
-    <div className={`flex-1 ${containerClass} border-x border-white/10 min-h-[calc(100vh-4rem)] ${scrollbarHiddenClass} flex flex-col transition-all duration-500 relative font-montserrat`}>
+    // MOBILE OPTIMIZATION 2: 
+    // - border-x-0 md:border-x: Removes side borders on mobile (0px) but adds them on desktop.
+    // - pb-20: Adds extra padding at the bottom so the last post isn't hidden by mobile nav bars.
+    <div className={`flex-1 ${containerClass} border-x-0 md:border-x border-white/10 min-h-[calc(100vh-4rem)] ${scrollbarHiddenClass} flex flex-col transition-all duration-500 relative font-montserrat pb-20`}>
       
       {/* BACKGROUND */}
       <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none fixed" />
@@ -130,7 +129,8 @@ export default function Feed() {
              <EmptyFeedState />
            </motion.div>
       ) : (
-           <div className="px-6 pb-6 space-y-8 w-full relative z-10">
+           // MOBILE OPTIMIZATION 3: px-0 on mobile (flush edges) -> px-6 on desktop (breathing room)
+           <div className="px-0 md:px-6 pb-6 space-y-8 w-full relative z-10">
              {posts.map((post, index) => (
                <motion.div
                  key={post.id}

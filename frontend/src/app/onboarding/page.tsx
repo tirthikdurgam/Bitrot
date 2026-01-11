@@ -53,7 +53,8 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="relative flex h-screen items-center justify-center bg-[#050505] text-white font-montserrat overflow-hidden">
+    // UPDATED: Added p-4 for safe edge spacing on mobile
+    <div className="relative flex min-h-screen items-center justify-center bg-[#050505] text-white font-montserrat overflow-hidden p-4">
       
       {/* 1. ATMOSPHERE BACKGROUND */}
       <div className="absolute inset-0 opacity-[0.05] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] pointer-events-none" />
@@ -62,13 +63,16 @@ export default function Onboarding() {
       {/* 2. MAIN CARD */}
       <form 
         onSubmit={handleSubmit} 
-        className="relative z-10 p-10 border border-white/10 bg-black/40 rounded-3xl shadow-[0_0_50px_rgba(0,102,255,0.15)] w-full max-w-md backdrop-blur-xl group"
+        // UPDATED: Changed fixed w-96 to fluid w-full max-w-md
+        // UPDATED: Responsive padding p-6 (mobile) -> p-10 (desktop)
+        className="relative z-10 p-6 md:p-10 border border-white/10 bg-black/40 rounded-3xl shadow-[0_0_50px_rgba(0,102,255,0.15)] w-full max-w-md backdrop-blur-xl group"
       >
         {/* Animated Border Glow */}
         <div className="absolute -inset-0.5 bg-gradient-to-r from-[#0066FF] to-purple-600 rounded-3xl opacity-20 group-hover:opacity-40 transition duration-1000 blur-lg -z-10" />
 
         <div className="mb-8 text-center">
-            <h1 className="text-4xl font-black tracking-tighter text-white mb-2 glitch-text" data-text="IDENTIFY YOURSELF">
+            {/* UPDATED: Responsive text size text-3xl -> text-4xl */}
+            <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white mb-2 glitch-text" data-text="IDENTIFY YOURSELF">
                 IDENTIFY YOURSELF
             </h1>
             <p className="text-white/60 text-sm font-medium tracking-wide">
