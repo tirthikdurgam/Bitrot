@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { useRouter } from "next/navigation" // 1. Import Router
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send } from "lucide-react"
-import { createClient } from "@/utils/supabase/client" // 2. Import Supabase
+import { createClient } from "@/utils/supabase/client"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
 
@@ -43,7 +43,7 @@ export default function FeedCard({
   userCredits = 100
 }: FeedCardProps) {
   
-  const router = useRouter() // 3. Initialize Router
+  const router = useRouter()
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
   const [showComments, setShowComments] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -57,7 +57,6 @@ export default function FeedCard({
   const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
   const latestComments = localComments.filter(c => !c.parent_id).slice(-2);
 
-  // 4. AUTH GUARD HELPER
   const checkAuth = async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -69,7 +68,6 @@ export default function FeedCard({
   }
 
   const handlePostComment = async (text: string, parentId?: string) => {
-    // GUARD
     if (!(await checkAuth())) return
 
     try {
@@ -100,7 +98,6 @@ export default function FeedCard({
   }
 
   const handleHeal = async () => {
-    // GUARD
     if (!(await checkAuth())) return
     
     if(userCredits < 10) return alert("Not enough credits!")
@@ -109,7 +106,6 @@ export default function FeedCard({
   }
 
   const handleCorrupt = async () => {
-    // GUARD
     if (!(await checkAuth())) return
 
     if(userCredits < 10) return alert("Not enough credits!")
@@ -148,6 +144,8 @@ export default function FeedCard({
           alt={username} 
           fill 
           sizes="(max-width: 768px) 100vw, 600px"
+          // --- THE FIX: Bypass Vercel Optimization ---
+          unoptimized={true} 
           className={`object-cover transition-all duration-700 ${isDead ? 'grayscale contrast-150 brightness-75 sepia-[.3]' : 'group-hover:scale-[1.02]'}`}
           {...(isSecretActive ? secretHandlers : {})}
         />
