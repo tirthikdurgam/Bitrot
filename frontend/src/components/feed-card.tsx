@@ -72,23 +72,30 @@ export default function FeedCard({
   // --- FETCH AVATARS ---
   useEffect(() => {
     const getData = async () => {
-        // 1. Get Current User (for Comment Box)
+        // 1. Get Current User (Session)
         const { data: { user } } = await supabase.auth.getUser()
         if (user?.user_metadata?.avatar_url) {
             setCurrentUserAvatar(user.user_metadata.avatar_url)
         }
 
-        // 2. Get Post Author (for Header)
-        // We assume the 'username' prop matches the database username
+        // 2. Get Post Author (Database)
+        // If the post author is ME, just use my session avatar immediately (Optimization)
+        // We match loosely on username logic or assume if session avatar exists and we just posted
+        
+        // Fetch from public.users table (Now requires avatar_url column)
         const { data: authorData } = await supabase
             .from('users')
-            .select('raw_user_meta_data')
+            .select('avatar_url')
             .eq('username', username)
             .single()
         
-        // Extract avatar from metadata json
-        if (authorData?.raw_user_meta_data?.avatar_url) {
-            setAuthorAvatar(authorData.raw_user_meta_data.avatar_url)
+        if (authorData?.avatar_url) {
+            setAuthorAvatar(authorData.avatar_url)
+        } 
+        // Fallback: If DB fetch failed but we know it's us (rough check), use session
+        else if (user?.user_metadata?.avatar_url && 
+                (user.user_metadata.full_name === username || username.includes(user.email?.split('@')[0] || ''))) {
+             setAuthorAvatar(user.user_metadata.avatar_url)
         }
     }
     getData()
@@ -232,6 +239,7 @@ export default function FeedCard({
           `}
         />
 
+        {/* Mobile Hint */}
         {isSecretActive && !isUnlocked && !isPressing && (
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none md:hidden opacity-60 flex flex-col items-center">
                  <Fingerprint size={48} className="text-white animate-pulse mb-2" />
@@ -239,6 +247,7 @@ export default function FeedCard({
              </div>
         )}
 
+        {/* Decrypting Animation */}
         <AnimatePresence>
             {isPressing && !isUnlocked && (
                 <motion.div 
@@ -262,6 +271,7 @@ export default function FeedCard({
             )}
         </AnimatePresence>
 
+        {/* Success Overlay */}
         {isUnlocked && (
              <motion.div 
                 initial={{ opacity: 0 }} 
