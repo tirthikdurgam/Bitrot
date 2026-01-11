@@ -78,14 +78,11 @@ export default function ProfilePage() {
     return `${visiblePart}*****@${domain}`
   }
 
-  // 3. UPDATED: Robust URL Generator
+  // 3. Robust URL Generator
   const getImageUrl = (path: string) => {
     if (!path) return ""
-    // Ensure no double slashes if path starts with /
     const cleanPath = path.startsWith('/') ? path.slice(1) : path
     const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/bitloss-images/${cleanPath}`
-    
-    // Cache buster to force reload if previous 403 was cached
     return `${baseUrl}?t=${Date.now()}`
   }
 
@@ -100,18 +97,19 @@ export default function ProfilePage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#050505] pt-20 p-6 font-montserrat">
+    // MOBILE OPTIMIZATION: pt-24 to clear fixed navbars, px-4 for side padding
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#050505] pt-24 pb-10 px-4 font-montserrat">
         
-        {/* Background Glow (Updated to System Blue) */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#0066FF]/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+        {/* Background Glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-[#0066FF]/10 rounded-full blur-[100px] md:blur-[120px] pointer-events-none mix-blend-screen" />
 
         {/* Profile Card Container */}
-        <div className="w-full max-w-md bg-black/40 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl relative z-10 animate-in fade-in zoom-in duration-300 flex flex-col min-h-[600px] max-h-[85vh]">
+        <div className="w-full max-w-md bg-black/40 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-2xl shadow-2xl relative z-10 animate-in fade-in zoom-in duration-300 flex flex-col min-h-[500px] max-h-[85vh]">
             
             {/* Close Button */}
             <Link 
                 href="/" 
-                className="absolute top-5 right-5 text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full z-20"
+                className="absolute top-4 right-4 md:top-5 md:right-5 text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full z-20"
             >
                 <X size={20} />
             </Link>
@@ -127,7 +125,7 @@ export default function ProfilePage() {
                             className="rounded-full object-cover" 
                             unoptimized
                             priority
-                            referrerPolicy="no-referrer" // <--- FIX FOR GOOGLE IMAGES
+                            referrerPolicy="no-referrer"
                         />
                     ) : (
                         <div className="w-full h-full bg-white/5 flex items-center justify-center rounded-full">
@@ -216,7 +214,8 @@ export default function ProfilePage() {
                                          <Loader2 className="animate-spin text-[#0066FF]" size={24} />
                                      </div>
                                 ) : artifacts.length > 0 ? (
-                                    <div className="grid grid-cols-3 gap-2 pb-2">
+                                    // MOBILE OPTIMIZATION: grid-cols-2 (Mobile) -> grid-cols-3 (Desktop)
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pb-2">
                                         {artifacts.map((art) => (
                                             <div 
                                                 key={art.id} 

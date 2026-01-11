@@ -27,11 +27,12 @@ export default function AboutPage() {
     <main className="min-h-screen bg-[#050505] text-white font-montserrat relative overflow-hidden selection:bg-[#0066FF] selection:text-white pb-20">
       
       {/* 1. BACKGROUND LAYER */}
-      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none" />
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#0066FF]/5 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none fixed" />
+      <div className="absolute top-0 right-0 w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-[#0066FF]/5 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
 
-      {/* 2. LIVE DATA TICKER (Top Bar) - Now in Montserrat */}
-      <div className="w-full h-8 bg-[#0066FF]/10 border-b border-[#0066FF]/20 flex items-center overflow-hidden whitespace-nowrap">
+      {/* 2. LIVE DATA TICKER (Top Bar) */}
+      {/* MOBILE OPTIMIZATION: Hidden on very small screens if needed, or scaled down */}
+      <div className="w-full h-8 bg-[#0066FF]/10 border-b border-[#0066FF]/20 flex items-center overflow-hidden whitespace-nowrap mt-16 md:mt-16">
         <motion.div 
             animate={{ x: ["0%", "-50%"] }} 
             transition={{ duration: 20, ease: "linear", repeat: Infinity }}
@@ -54,39 +55,41 @@ export default function AboutPage() {
       </div>
 
       {/* 3. MAIN CONTENT CONTAINER */}
-      <div className="max-w-6xl mx-auto px-6 pt-12 relative z-10">
+      {/* MOBILE OPTIMIZATION: Increased top padding (pt-12 -> pt-20) to clear Navbar */}
+      <div className="max-w-6xl mx-auto px-6 pt-12 md:pt-20 relative z-10">
         
         {/* NAV BACK */}
-        <Link href="/" className="inline-flex items-center gap-2 text-white/40 hover:text-[#0066FF] transition-colors mb-6 group">
-                    <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-xs tracking-widest uppercase font-bold">Return to Feed</span>
-                </Link>
+        <Link href="/" className="inline-flex items-center gap-2 text-white/40 hover:text-[#0066FF] transition-colors mb-8 group">
+             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+             <span className="text-xs tracking-widest uppercase font-bold">Return to Feed</span>
+        </Link>
 
         <motion.div 
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="space-y-20"
+            className="space-y-16 md:space-y-20"
         >
 
             {/* --- HERO: MANIFESTO --- */}
             <motion.div variants={itemVariants} className="relative">
-                {/* Decorative brackets */}
-                <div className="absolute -top-6 -left-6 w-12 h-12 border-t-2 border-l-2 border-white/10" />
-                <div className="absolute -bottom-6 -right-6 w-12 h-12 border-b-2 border-r-2 border-white/10" />
+                {/* Decorative brackets - Hidden on mobile to reduce clutter */}
+                <div className="hidden md:block absolute -top-6 -left-6 w-12 h-12 border-t-2 border-l-2 border-white/10" />
+                <div className="hidden md:block absolute -bottom-6 -right-6 w-12 h-12 border-b-2 border-r-2 border-white/10" />
                 
-                <h1 className="text-6xl md:text-8xl font-black tracking-tighter uppercase mb-8 leading-[0.85] glitch-text" data-text="DIGITAL ENTROPY">
+                {/* MOBILE OPTIMIZATION: Scaled text text-5xl -> text-8xl */}
+                <h1 className="text-5xl md:text-8xl font-black tracking-tighter uppercase mb-8 leading-[0.9] glitch-text" data-text="DIGITAL ENTROPY">
                     DIGITAL <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#0066FF]">ENTROPY</span>
                 </h1>
                 
-                <div className="flex flex-col md:flex-row gap-12 items-start border-l-2 border-[#0066FF] pl-8">
-                    <p className="text-xl md:text-2xl text-white/80 font-medium max-w-2xl leading-relaxed">
+                <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-start border-l-2 border-[#0066FF] pl-6 md:pl-8">
+                    <p className="text-lg md:text-2xl text-white/80 font-medium max-w-2xl leading-relaxed">
                         The internet promised permanence. <span className="text-white bg-[#0066FF]/20 px-1">It was a lie.</span>
                         <br />
                         BitLoss introduces biological decay to digital files.
                     </p>
                     
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-2">
                         <div className="flex items-center gap-4 text-xs font-bold tracking-wider text-white/40 uppercase">
                             <Cpu size={14} className="text-[#0066FF]" />
                             <span>PROCESSING_CORE: ACTIVE</span>
@@ -108,19 +111,19 @@ export default function AboutPage() {
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02]" />
                 
                 {/* Header */}
-                <div className="p-8 border-b border-white/10 flex justify-between items-center bg-black/40">
-                    <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
-                        <Terminal size={24} className="text-[#0066FF]" />
+                <div className="p-6 md:p-8 border-b border-white/10 flex justify-between items-center bg-black/40">
+                    <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <Terminal size={20} className="text-[#0066FF]" />
                         Operational_Logic
                     </h3>
-                    <span className="text-[10px] text-[#0066FF] border border-[#0066FF]/30 px-2 py-1 rounded font-bold tracking-wider">
+                    <span className="text-[9px] md:text-[10px] text-[#0066FF] border border-[#0066FF]/30 px-2 py-1 rounded font-bold tracking-wider">
                         SYS_EXEC_MODE
                     </span>
                 </div>
 
                 {/* The Flowchart */}
-                <div className="p-8 md:p-16 relative">
-                    {/* The Connecting Line */}
+                <div className="p-6 md:p-16 relative">
+                    {/* The Connecting Line (Hidden on Mobile) */}
                     <div className="hidden md:block absolute top-[50%] left-0 right-0 h-[2px] bg-white/10 -translate-y-1/2 z-0">
                         {/* Animated Signal Packet */}
                         <motion.div 
@@ -130,7 +133,8 @@ export default function AboutPage() {
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
+                    {/* MOBILE OPTIMIZATION: grid-cols-1 (Mobile) -> grid-cols-3 (Desktop) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-12 relative z-10">
                         
                         {/* STEP 1 */}
                         <div className="group bg-[#050505] border border-white/10 p-6 hover:border-[#0066FF] transition-colors duration-300 relative">

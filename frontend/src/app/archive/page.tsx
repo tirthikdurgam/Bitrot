@@ -61,13 +61,13 @@ export default function ArchivePage() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white font-montserrat relative overflow-hidden selection:bg-red-500 selection:text-white pb-20">
+    <main className="min-h-screen bg-[#050505] text-white font-montserrat relative overflow-hidden selection:bg-red-500 selection:text-white pb-20 pt-16 md:pt-0">
       
       {/* 3. BACKGROUND LAYERS */}
-      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none" />
-      <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-red-900/5 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-200 pointer-events-none fixed" />
+      <div className="absolute top-0 left-0 w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-red-900/10 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
 
-      {/* 4. TICKER */}
+      {/* 4. TICKER - Hidden on very small screens to save space, or scaled down */}
       <div className="w-full h-8 bg-[#050505] border-b border-white/10 flex items-center overflow-hidden whitespace-nowrap z-20 relative">
         <motion.div 
             animate={{ x: ["0%", "-50%"] }} 
@@ -79,6 +79,7 @@ export default function ArchivePage() {
             <span>/// RECOVERY_CHANCE: 0%</span>
             <span>/// {archiveItems.length}_FILES_LOST</span>
             <span className="text-[#0066FF]">/// SYSTEM_INTEGRITY: STABLE</span>
+            {/* Duplicate for loop */}
             <span className="text-red-500">/// WARNING: DATA_CORRUPTION_DETECTED</span>
             <span>/// ARCHIVE_MODE: READ_ONLY</span>
             <span>/// RECOVERY_CHANCE: 0%</span>
@@ -88,17 +89,20 @@ export default function ArchivePage() {
       </div>
 
       {/* 5. MAIN CONTENT */}
-      <div className="max-w-7xl mx-auto px-6 pt-12 relative z-10">
+      {/* MOBILE OPTIMIZATION: px-4 on mobile, px-6 on desktop */}
+      <div className="max-w-7xl mx-auto px-4 md:px-6 pt-8 md:pt-12 relative z-10">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-8">
-            <div>
+        {/* MOBILE OPTIMIZATION: Flex-col on mobile to stack elements */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 md:mb-16 gap-8">
+            <div className="w-full">
                 <Link href="/" className="inline-flex items-center gap-2 text-white/40 hover:text-[#0066FF] transition-colors mb-6 group">
                     <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
                     <span className="text-xs tracking-widest uppercase font-bold">Return to Feed</span>
                 </Link>
                 
-                <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase mb-4 glitch-text" data-text="SYSTEM ARCHIVE">
+                {/* Responsive Text: text-4xl mobile -> text-7xl desktop */}
+                <h1 className="text-4xl md:text-7xl font-black tracking-tighter uppercase mb-4 glitch-text" data-text="SYSTEM ARCHIVE">
                     SYSTEM <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-red-600">ARCHIVE</span>
                 </h1>
                 <p className="text-white/50 text-sm font-medium max-w-lg leading-relaxed">
@@ -107,7 +111,8 @@ export default function ArchivePage() {
             </div>
 
             {/* STAT BLOCK */}
-            <div className="flex gap-8 border-l border-white/10 pl-8">
+            {/* MOBILE OPTIMIZATION: Remove left border/padding on mobile for better stacking */}
+            <div className="flex gap-8 border-l-0 pl-0 md:border-l md:border-white/10 md:pl-8 w-full md:w-auto">
                 <div>
                     <div className="text-[10px] text-white/30 font-bold tracking-widest uppercase mb-1">Total_Casualties</div>
                     <div className="text-3xl font-black text-white">{archiveItems.length}</div>
@@ -121,10 +126,11 @@ export default function ArchivePage() {
 
         {/* SEARCH BAR */}
         <div className="w-full h-12 border-y border-white/10 flex items-center justify-between mb-12 bg-white/[0.02]">
-            <div className="flex items-center gap-3 px-4 h-full border-r border-white/10 w-full md:w-auto">
+            <div className="flex items-center gap-3 px-4 h-full border-r-0 md:border-r border-white/10 w-full md:w-auto">
                 <Search size={14} className="text-white/30" />
                 <span className="text-xs font-bold text-white/30 tracking-widest uppercase">SEARCH HASH ID</span>
             </div>
+            {/* Hidden on mobile to save space */}
             <div className="hidden md:flex items-center gap-6 px-6 h-full text-[10px] font-bold tracking-widest text-white/30 uppercase">
                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"/> TERMINATED</span>
                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-white/20 rounded-full"/> ARCHIVED</span>
@@ -147,13 +153,14 @@ export default function ArchivePage() {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8"
+                // MOBILE OPTIMIZATION: grid-cols-2 (Mobile) -> grid-cols-4 (Desktop)
+                className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8"
             >
                 {archiveItems.map((post) => (
                     <motion.div 
                         key={post.id} 
                         variants={cardVariants}
-                        className="group relative aspect-[4/5] bg-black border border-white/10 overflow-hidden hover:border-red-500/50 transition-colors duration-500"
+                        className="group relative aspect-[4/5] bg-black border border-white/10 overflow-hidden hover:border-red-500/50 transition-colors duration-500 rounded-lg md:rounded-none"
                     >
                         
                         {/* IMAGE */}
@@ -161,7 +168,7 @@ export default function ArchivePage() {
                             src={post.image} 
                             alt="Dead File" 
                             fill
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 25vw"
                             className="object-cover grayscale contrast-125 brightness-75 group-hover:scale-105 group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 transition-all duration-700"
                         />
                         
@@ -170,23 +177,22 @@ export default function ArchivePage() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80 pointer-events-none" />
 
                         {/* BADGE */}
-                        <div className="absolute top-3 right-3 bg-red-500/10 border border-red-500/30 backdrop-blur-md px-2 py-1 flex items-center gap-2">
+                        <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-red-500/10 border border-red-500/30 backdrop-blur-md px-1.5 py-0.5 md:px-2 md:py-1 flex items-center gap-2 rounded-sm">
                              <FileX size={10} className="text-red-500" />
+                             {/* Hide text on very small screens if needed, mostly fine though */}
                              <span className="text-[8px] font-black text-red-500 tracking-widest uppercase">CORRUPT</span>
                         </div>
 
-                        {/* HOVER DETAILS */}
-                        <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                            {/* REPLACED font-mono WITH font-bold + tracking-wider */}
-                            <div className="text-[10px] text-red-500 mb-1 flex items-center gap-2 font-bold tracking-wider">
+                        {/* HOVER DETAILS (Always visible on mobile bottom, or appearing on tap) */}
+                        <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4 translate-y-0 md:translate-y-2 md:group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/90 to-transparent">
+                            <div className="text-[9px] md:text-[10px] text-red-500 mb-1 flex items-center gap-2 font-bold tracking-wider">
                                 <AlertTriangle size={10} />
                                 INTEGRITY: 0%
                             </div>
-                            <div className="text-xs font-bold text-white uppercase tracking-wider mb-2 line-clamp-1">
+                            <div className="text-[10px] md:text-xs font-bold text-white uppercase tracking-wider mb-2 line-clamp-1">
                                 {post.caption || "UNKNOWN DATA"}
                             </div>
-                            <div className="h-[1px] w-full bg-white/20 mb-2 group-hover:bg-red-500/50 transition-colors" />
-                            {/* REPLACED font-mono WITH font-bold + tracking-wider */}
+                            <div className="hidden md:block h-[1px] w-full bg-white/20 mb-2 group-hover:bg-red-500/50 transition-colors" />
                             <div className="flex justify-between text-[8px] font-bold tracking-wider text-white/40 uppercase">
                                 <span>@{post.username || "ANON"}</span>
                                 <span>GEN: {post.generations}</span>
