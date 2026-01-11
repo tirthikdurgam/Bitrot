@@ -114,7 +114,7 @@ export default function Sidebar() {
             
             {/* Footer Link */}
             <Link href="/archive" className="flex items-center justify-between text-[10px] font-bold text-white/40 hover:text-red-500 transition-colors uppercase tracking-wider border-t border-white/5 pt-3">
-                <span>View_Full_Manifest</span>
+                <span>View Full Manifest</span>
                 <ChevronRight size={12} />
             </Link>
         </div>
@@ -154,7 +154,7 @@ export default function Sidebar() {
                             <div className="flex justify-between items-center mb-1">
                                 <div className="flex items-center gap-2 text-white group-hover:text-[#0066FF] transition-colors">
                                     <Hash size={10} className="text-white/30" />
-                                    <span className="text-xs font-bold uppercase tracking-wide truncate max-w-[120px]">
+                                    <span className="text-xs font-bold tracking-wide truncate max-w-[120px]">
                                         @{trend.username}
                                     </span>
                                 </div>
