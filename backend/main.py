@@ -297,7 +297,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             kill_bonus = False
 
             if row.get('status') == 'active':
-                old_integrity = row.get('integrity_snapshot', 100.0)
+                old_integrity = row.get('bit_integrity', 100.0)
                 new_integrity = max(0.0, old_integrity - decay_amount)
                 
                 # Passive Viewer Reward: 1 Credit per 1% decay witnessed
