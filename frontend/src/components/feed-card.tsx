@@ -2,12 +2,13 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import { useRouter } from "next/navigation" // 1. Import Router
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageCircle, Lock, ShieldAlert, Zap, Skull, Send } from "lucide-react"
+import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send } from "lucide-react"
+import { createClient } from "@/utils/supabase/client" // 2. Import Supabase
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
 
-// 1. EXPORT this interface so CommentSection can import it
 export interface Comment {
   id: string
   username: string
@@ -42,9 +43,8 @@ export default function FeedCard({
   userCredits = 100
 }: FeedCardProps) {
   
-  // Local state for instant updates
+  const router = useRouter() // 3. Initialize Router
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
-  
   const [showComments, setShowComments] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [isHealing, setIsHealing] = useState(false)
@@ -55,25 +55,34 @@ export default function FeedCard({
   const secretHandlers = useSecretGate(id, isSecretActive, isHovered)
   
   const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
-  
-  // 2. FILTER PREVIEW: Only show top-level comments (not replies) in the card footer
   const latestComments = localComments.filter(c => !c.parent_id).slice(-2);
 
+  // 4. AUTH GUARD HELPER
+  const checkAuth = async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        router.push("/login")
+        return false
+    }
+    return true
+  }
+
   const handlePostComment = async (text: string, parentId?: string) => {
+    // GUARD
+    if (!(await checkAuth())) return
+
     try {
-      // 3. OPTIMISTIC UPDATE: Show comment immediately before DB confirms
       const newTempComment: Comment = {
-        id: Math.random().toString(), // Temporary ID
-        username: "You", // Placeholder until refresh
+        id: Math.random().toString(),
+        username: "You",
         content: text,
         created_at: new Date().toISOString(),
-        parent_id: parentId || null // Ensure null if undefined
+        parent_id: parentId || null
       }
 
       setLocalComments(prev => [...prev, newTempComment])
 
-      // 4. FIX: Use the Render Backend URL
-      // Previously "/api/comment" was failing because you don't have a Next.js API route
       await fetch("https://bitrot.onrender.com/comment", { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,12 +100,18 @@ export default function FeedCard({
   }
 
   const handleHeal = async () => {
+    // GUARD
+    if (!(await checkAuth())) return
+    
     if(userCredits < 10) return alert("Not enough credits!")
     setIsHealing(true)
     setTimeout(() => setIsHealing(false), 1000)
   }
 
   const handleCorrupt = async () => {
+    // GUARD
+    if (!(await checkAuth())) return
+
     if(userCredits < 10) return alert("Not enough credits!")
     setIsCorrupting(true)
     setTimeout(() => setIsCorrupting(false), 1000)
@@ -158,7 +173,7 @@ export default function FeedCard({
                   className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isHealing ? 'animate-pulse text-[#00FF41]' : ''}`}
                   title="-10 Credits to Heal"
                 >
-                    <Zap size={24} className={isHealing ? 'scale-110' : ''} />
+                    <Wrench size={22} className={isHealing ? 'scale-110' : ''} />
                 </button>
                 )}
 
@@ -169,7 +184,7 @@ export default function FeedCard({
                   className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isCorrupting ? 'animate-shake text-red-500' : ''}`}
                   title="-10 Credits to Corrupt"
                 >
-                    <Skull size={24} className={isCorrupting ? 'scale-110' : ''} />
+                    <Hammer size={22} className={isCorrupting ? 'scale-110' : ''} />
                 </button>
                 )}
 
@@ -232,7 +247,7 @@ export default function FeedCard({
              <div className="p-5">
                <CommentSection 
                  postId={id} 
-                 comments={localComments} // Passes the updated list
+                 comments={localComments} 
                  onPostComment={handlePostComment}
                />
              </div>

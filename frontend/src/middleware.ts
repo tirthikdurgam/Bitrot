@@ -2,13 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // 1. Initialize Response
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
-  // --- UPDATED CSP HEADER ---
+  // 2. SECURITY HEADERS (CSP)
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com;
@@ -30,6 +31,7 @@ export async function middleware(request: NextRequest) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()') 
 
+  // 3. INIT SUPABASE CLIENT
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -55,7 +57,48 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  // 4. CHECK AUTH SESSION
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // 5. USERNAME ENFORCEMENT LOGIC
+  // Only run this check if the user is actually logged in
+  if (user) {
+    const path = request.nextUrl.pathname
+    
+    // Define routes where we DO NOT check for username 
+    // (to prevent infinite loops or blocking auth)
+    const isExcludedRoute = 
+      path.startsWith('/onboarding') || 
+      path.startsWith('/auth') || 
+      path.startsWith('/login')
+
+    // CHECK 1: If user is inside the app (not on excluded route), check if they have a username
+    if (!isExcludedRoute) {
+      const { data: dbUser } = await supabase
+        .from('users') // Checking the 'users' table
+        .select('username')
+        .eq('id', user.id)
+        .single()
+
+      // If username is missing/null, force them to onboarding
+      if (!dbUser?.username) {
+        return NextResponse.redirect(new URL('/onboarding', request.url))
+      }
+    }
+
+    // CHECK 2: If user IS on onboarding, but ALREADY has a username, kick them out to home
+    if (path.startsWith('/onboarding')) {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+
+      if (dbUser?.username) {
+        return NextResponse.redirect(new URL('/', request.url))
+      }
+    }
+  }
 
   return response
 }

@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Upload, Loader2, CloudUpload, Type, Lock } from "lucide-react"
 import Image from "next/image"
+import { useRouter } from "next/navigation" // 1. Import Router
 import { createClient } from "@/utils/supabase/client"
 
 const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
@@ -15,6 +16,7 @@ interface UploadModalProps {
 }
 
 export default function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
+  const router = useRouter() // 2. Initialize Router
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [caption, setCaption] = useState("")
@@ -22,6 +24,23 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   const [isUploading, setIsUploading] = useState(false)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 3. AUTH GUARD: Check login status immediately when modal opens
+  useEffect(() => {
+    if (isOpen) {
+        const checkAuth = async () => {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            
+            // If no user, kick them out to login page
+            if (!user) {
+                onClose()
+                router.push("/login")
+            }
+        }
+        checkAuth()
+    }
+  }, [isOpen, onClose, router])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -41,14 +60,19 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault() // Prevents refresh on actual submit
+    e.preventDefault()
     if (!file) return
 
     setIsUploading(true)
     
-    // --- FETCH USERNAME ---
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    
+    // 4. Double Check Auth on Submit
+    if (!user) {
+        router.push("/login")
+        return
+    }
     
     let username = "Anonymous_Creator"
     if (user) {
@@ -66,6 +90,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     }
 
     try {
+      // Ensure this points to your Render backend
       const res = await fetch("https://bitrot.onrender.com/upload", {
         method: "POST",
         body: formData,
@@ -94,7 +119,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       {isOpen && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-8 font-inter">
           
-          {/* 1. BACKDROP */}
+          {/* BACKDROP */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -103,7 +128,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             className="absolute inset-0 bg-black/60 backdrop-blur-md cursor-pointer"
           />
 
-          {/* 2. THE MODAL CONTAINER */}
+          {/* MODAL CONTAINER */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -112,7 +137,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             className="relative w-full max-w-5xl bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
           >
             
-            {/* FIX 1: CLOSE BUTTON - Added type="button" */}
             <button
               type="button" 
               onClick={onClose}
@@ -135,7 +159,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                         unoptimized 
                       />
                   </div>
-                  {/* FIX 2: REPLACE IMAGE BUTTON - Added type="button" */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -179,7 +202,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                                 <p className="text-white/30 text-[10px] uppercase tracking-wide font-medium">JPEG, PNG, WEBP — Max 50MB</p>
                             </div>
 
-                            {/* FIX 3: BROWSE FILES BUTTON - Added type="button" */}
                             <button type="button" className="px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black text-xs font-bold rounded-lg transition-all border border-white/10 shadow-lg mt-2 z-10 pointer-events-none">
                                 Browse Files
                             </button>
@@ -231,7 +253,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   </div>
                 </div>
 
-                {/* Submit Button - This is the ONLY button that should submit */}
+                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={!file || isUploading}

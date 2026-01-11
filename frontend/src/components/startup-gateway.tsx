@@ -2,60 +2,71 @@
 
 import { useState, useEffect } from "react"
 import { AnimatePresence } from "framer-motion"
-import LoadingScreen from "./loading-screen" // Imports your visual component
+import LoadingScreen from "./loading-screen"
 
 export default function StartupGateway({ children }: { children: React.ReactNode }) {
   const [isBackendReady, setIsBackendReady] = useState(false)
   const [isVisualsComplete, setIsVisualsComplete] = useState(false)
   const [showGate, setShowGate] = useState(true)
 
-  // 1. WAKE UP THE BACKEND
+  // 1. SESSION CHECK & WAKE UP
   useEffect(() => {
-    const wakeUpServer = async () => {
+    const checkSessionAndWakeUp = async () => {
+      // --- CHECK LOCAL STORAGE ---
+      const lastSession = localStorage.getItem("bitloss_session_timestamp")
+      const ONE_HOUR = 60 * 60 * 1000
+      
+      const isSessionValid = lastSession && (Date.now() - parseInt(lastSession) < ONE_HOUR)
+
+      if (isSessionValid) {
+        // SKIP LOADING SCREEN IMMEDIATELY
+        console.log("SYSTEM: Valid session detected. Bypassing boot sequence.")
+        setShowGate(false)
+        setIsBackendReady(true) 
+      } 
+      
+      // --- WAKE UP BACKEND (Always do this, even if skipping visuals) ---
       try {
         console.log("SYSTEM: Pinging Render Backend...")
-        
-        // This hits your backend. Render sees the traffic and wakes up.
-        // We use 'no-cache' to ensure it actually hits the server.
         const res = await fetch("https://bitrot.onrender.com/me", { 
             method: "GET",
             headers: { "Cache-Control": "no-cache" }
         })
-
         if (res.ok) {
             console.log("SYSTEM: Connection Established.")
             setIsBackendReady(true)
         }
       } catch (error) {
-        // If it fails (e.g. timeout), we still let them in eventually 
-        // so they aren't stuck forever, but we log the error.
         console.warn("SYSTEM: Backend Handshake Failed (Offline Mode?)", error)
         setIsBackendReady(true) 
       }
     }
 
-    wakeUpServer()
+    checkSessionAndWakeUp()
   }, [])
 
-  // 2. CHECK IF WE CAN ENTER
-  // We only close the gate when BOTH visuals are done AND backend is ready.
+  // 2. CHECK IF WE CAN OPEN THE GATE
   useEffect(() => {
-    if (isBackendReady && isVisualsComplete) {
-        setShowGate(false)
+    // Only run this logic if the gate is currently closed
+    if (showGate) {
+        if (isBackendReady && isVisualsComplete) {
+            setShowGate(false)
+        }
     }
-  }, [isBackendReady, isVisualsComplete])
+  }, [isBackendReady, isVisualsComplete, showGate])
 
   return (
     <>
       <AnimatePresence mode="wait">
         {showGate && (
-           // We render YOUR LoadingScreen here.
-           // When it finishes its 0-100% count, it triggers 'setIsVisualsComplete'
            <LoadingScreen onComplete={() => setIsVisualsComplete(true)} />
         )}
       </AnimatePresence>
       
-      {/* While the gate is closed, we don't render children to prevent un-styled flashes */}
+      {/* If showGate is false, we show children immediately.
+          This prevents the "Flicker" on reload because React 
+          will paint the children as soon as the useEffect above sets showGate(false).
+      */}
       {!showGate && children}
     </>
   )

@@ -86,7 +86,7 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
       <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
          {comments.length === 0 ? (
             <div className="text-center py-8 text-white/20 italic text-sm font-light">
-               No signals yet. Be the first to transmit.
+               No comments yet.
             </div>
          ) : (
             renderComments(null) // Start rendering from top-level
@@ -117,7 +117,7 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
                 type="text" 
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder={replyingTo ? "Transmit reply..." : "Inject signal..."}
+                placeholder={replyingTo ? "Transmit reply..." : ""}
                 className="w-full bg-white/5 hover:bg-white/10 focus:bg-black/40 text-white placeholder-white/30 text-sm px-5 py-3 rounded-full border border-white/10 outline-none transition-all pr-12 backdrop-blur-md font-medium tracking-wide"
             />
             <button 
