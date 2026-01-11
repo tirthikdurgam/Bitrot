@@ -1,6 +1,7 @@
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from datetime import datetime
 
 # 1. Load env vars
 load_dotenv()
@@ -21,109 +22,71 @@ else:
         print(f"Database Connected (Admin Mode: {bool(service_key)})")
     except Exception as e:
         print(f"Database Connection Error: {e}")
-# --- CREDIT FUNCTIONS (NEW) ---
 
-def update_credits(username, amount):
+# --- HELPER FUNCTIONS ---
+# NOTE: The core logic for the feed and decay is now handled directly in main.py 
+# to allow for efficient batch processing. These helpers are updated for compatibility 
+# with the new schema but are primarily for utility usage.
+
+def update_credits(user_id, amount):
     """
-    Modifies user credits.
-    amount > 0: Earn credits (Decay reward)
-    amount < 0: Spend credits (Heal/Corrupt cost)
+    Modifies user credits using the UUID (user_id).
     """
     if not supabase: return None
     try:
         # 1. Get current credits
-        res = supabase.table("users").select("credits").eq("username", username).execute()
+        res = supabase.table("users").select("credits").eq("id", user_id).execute()
         if not res.data: return None
         
         current_credits = res.data[0].get('credits', 0)
         new_balance = current_credits + amount
         
-        # Prevent negative balance logic is usually handled by caller, 
-        # but safe to check here for spending.
-        if new_balance < 0:
-            return None # Insufficient funds
-            
         # 2. Update
-        update_res = supabase.table("users").update({"credits": new_balance}).eq("username", username).execute()
+        supabase.table("users").update({"credits": new_balance}).eq("id", user_id).execute()
         return new_balance
     except Exception as e:
         print(f"Error updating credits: {e}")
         return None
 
-def get_credits(username):
+def get_credits(user_id):
     if not supabase: return 0
     try:
-        res = supabase.table("users").select("credits").eq("username", username).execute()
+        res = supabase.table("users").select("credits").eq("id", user_id).execute()
         if res.data:
             return res.data[0].get('credits', 0)
         return 0
     except:
         return 0
 
-# --- USER FUNCTIONS ---
-
-def update_score(username, points, kill=False):
-    """Updates score based on Username (from Auth), not IP"""
-    if not supabase: return
-    try:
-        # Check if user exists in public table
-        res = supabase.table("users").select("entropy_score, kills").eq("username", username).execute()
-        if not res.data: return
-        
-        current = res.data[0]
-        new_score = current['entropy_score'] + points
-        new_kills = current['kills'] + (1 if kill else 0)
-        
-        supabase.table("users").update({"entropy_score": new_score, "kills": new_kills}).eq("username", username).execute()
-    except Exception as e:
-        print(f"Error updating score: {e}")
-
-def get_top_destroyers():
-    if not supabase: return []
-    try:
-        res = supabase.table("users").select("username, entropy_score, kills").order("entropy_score", desc=True).limit(10).execute()
-        return res.data
-    except:
-        return []
-
-def get_user_loot(username):
-    if not supabase: return []
-    try:
-        res = supabase.table("images").select("*").eq("username", username).execute()
-        return res.data
-    except:
-        return []
-
 # --- POST/IMAGE FUNCTIONS ---
 
-def create_post(username, image_filename, caption="", secret_text=None):
+def create_post(user_id, username, image_path, caption="", secret_text=None):
     """
-    Creates a post in the 'images' table.
-    If 'secret_text' is provided, it also logs it in the 'image_secrets' vault.
+    Creates a post using the new schema (uploader_id, storage_path, etc.)
     """
     if not supabase: return None
     try:
-        # 1. Prepare Public Data
         data = {
-            "username": username,
-            "image_filename": image_filename, 
+            "uploader_id": user_id,        # Linked to Auth UUID
+            "username": username,          # Display name snapshot
+            "storage_path": image_path,    # The file path in bucket
+            "original_storage_path": image_path,
             "bit_integrity": 100.0,
             "current_quality": 100.0,
             "generations": 0,
             "witnesses": 0,
             "is_archived": False,
-            "storage_path": image_filename,
+            "is_destroyed": False,
             "caption": caption,
-            "has_secret": True if secret_text else False
+            "has_secret": True if secret_text else False,
+            "last_viewed": datetime.utcnow().isoformat()
         }
         
-        # 2. Insert Image & Get ID
         res = supabase.table("images").insert(data).execute()
         if not res.data: return None
         
         new_image_id = res.data[0]['id']
 
-        # 3. Insert Secret (If exists)
         if secret_text:
             print(f"Locking secret for Image {new_image_id}...")
             secret_payload = {
@@ -140,53 +103,33 @@ def create_post(username, image_filename, caption="", secret_text=None):
 
 def get_secret(post_id):
     """
-    Attempts to retrieve a secret. 
-    RLS policies automatically handle the 80% integrity check.
+    Attempts to retrieve a secret via image_id.
     """
     if not supabase: return None
     try:
+        # Fixed: Select secret_text where image_id matches
         res = supabase.table("image_secrets").select("secret_text").eq("image_id", post_id).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]['secret_text']
-        return None # RLS blocked it or no secret exists
+        return None 
     except Exception as e:
         print(f"Error fetching secret: {e}")
         return None
 
-def get_live_posts():
-    if not supabase: return []
-    try:
-        res = supabase.table("images").select("*").eq("is_archived", False).order("created_at", desc=True).execute()
-        return res.data
-    except Exception as e:
-        print(f"Error getting feed: {e}")
-        return []
-
 # --- COMMENT FUNCTIONS ---
 
-def get_comments(post_id):
-    """Fetch all comments for a specific post."""
-    if not supabase: return []
-    try:
-        response = supabase.table("comments").select("*").eq("post_id", post_id).order("created_at", desc=False).execute()
-        return response.data if response.data else []
-    except Exception as e:
-        print(f"DATABASE ERROR (get_comments): {e}")
-        return []
-
-def add_comment(post_id, username, content, integrity, parent_id=None):
-    """Add a new comment or reply."""
+def add_comment(post_id, user_id, content, integrity, parent_id=None):
+    """Add a new comment linked to the UUID."""
     if not supabase: return None
     try:
         data = {
             "post_id": post_id,
-            "username": username,
+            "user_id": user_id,  # Use UUID, not username
             "content": content,
-            "bit_integrity": integrity,
+            "bit_integrity": integrity, # Matches main.py usage
             "parent_id": parent_id
         }
         response = supabase.table("comments").insert(data).execute()
-        print(f"Comment saved! (Parent: {parent_id})")
         return response.data
     except Exception as e:
         print(f"DATABASE INSERT ERROR: {e}")
