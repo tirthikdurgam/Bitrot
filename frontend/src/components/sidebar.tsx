@@ -78,8 +78,9 @@ export default function Sidebar() {
                     <span className="text-[10px] font-bold tracking-widest">SYSTEM CLEAN</span>
                 </div>
             ) : (
+                // UPDATED: Removed scroll classes and added .slice(0, 2) to limit to 2 items
                 <div className="grid grid-cols-2 gap-2 mb-4">
-                    {graveyard.map((item, index) => (
+                    {graveyard.slice(0, 2).map((item, index) => (
                         <motion.div
                             key={item.id}
                             initial={{ opacity: 0, scale: 0.8 }}
@@ -137,7 +138,8 @@ export default function Sidebar() {
             {(!trends || trends.length === 0) ? (
                 <div className="text-[10px] text-white/30 font-medium italic p-2">System stable. No active decay.</div>
             ) : (
-                trends.map((trend, index) => {
+                // Keeping the slice(0, 3) for trends as requested previously
+                trends.slice(0, 3).map((trend, index) => {
                     const integrity = formatIntegrity(trend.current_quality || trend.bitIntegrity);
                     const isCritical = integrity < 40;
 
@@ -163,7 +165,6 @@ export default function Sidebar() {
                             
                             {/* Technical Progress Bar */}
                             <div className="w-full h-1 bg-white/5 flex gap-[1px]">
-                                {/* Width represents generations/activity instead of integrity for this visual */}
                                 <div 
                                     className={`h-full ${isCritical ? 'bg-red-500 shadow-[0_0_8px_red]' : 'bg-[#0066FF] shadow-[0_0_8px_#0066FF]'}`} 
                                     style={{ width: `${Math.min(trend.generations * 2, 100)}%` }}
@@ -182,7 +183,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* --- SECTION 3: QUICK ACTIONS (Visual Only - Matches Style) --- */}
+      {/* --- SECTION 3: QUICK ACTIONS (Visual Only) --- */}
       <div className="border border-[#0066FF]/30 bg-[#0066FF]/5 p-4 flex items-center gap-4 relative overflow-hidden group hover:bg-[#0066FF]/10 transition-colors cursor-pointer select-none">
          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10" />
          <div className="p-2 bg-[#0066FF]/20 rounded-full text-[#0066FF] group-hover:scale-110 transition-transform">
