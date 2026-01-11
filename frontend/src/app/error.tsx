@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { AlertTriangle, Home, RefreshCw, Terminal } from "lucide-react"
+import { AlertTriangle, Home, RefreshCw } from "lucide-react"
 
-export default function Error() {
+export default function NotFound() {
   return (
+    /* font-montserrat applied here will cover the entire page */
     <div className="relative min-h-screen w-full bg-[#050505] text-white font-montserrat flex flex-col items-center justify-center p-6 overflow-hidden selection:bg-red-500 selection:text-white">
       
       {/* 1. ATMOSPHERE LAYERS */}
@@ -25,6 +26,7 @@ export default function Error() {
              <div className="absolute inset-0 bg-blue-500 blur-[80px] opacity-20 animate-pulse" />
              <AlertTriangle size={64} className="text-[#0066FF] mb-6 mx-auto drop-shadow-[0_0_15px_rgba(0,102,255,0.5)]" />
              
+             {/* data-text is required for the glitch effect in the CSS below */}
              <h1 className="text-[120px] md:text-[180px] font-black leading-none tracking-tighter glitch-404" data-text="404">
                 404
              </h1>
@@ -33,7 +35,7 @@ export default function Error() {
         {/* SUBTITLE */}
         <div className="space-y-4 mb-10">
             <h2 className="text-2xl md:text-3xl font-bold tracking-[0.2em] text-white uppercase">
-                <span className="text-red-500">///</span> SIGNAL LOST
+                <span className="text-red-500">///</span> SIGNAL_LOST
             </h2>
             <p className="text-white/50 max-w-md mx-auto font-medium">
                 The requested data segment has been lost to entropy or does not exist in this timeline.
@@ -44,7 +46,8 @@ export default function Error() {
         <div className="w-full bg-black/50 border border-white/10 rounded-xl p-6 mb-10 backdrop-blur-md text-left relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#0066FF] to-transparent opacity-50" />
             
-            <div className="font-mono text-[10px] md:text-xs space-y-2 text-white/40">
+            {/* Terminal logs usually use font-mono, but updated here to montserrat per request */}
+            <div className="font-montserrat text-[10px] md:text-xs space-y-2 text-white/40">
                 <p><span className="text-[#0066FF] mr-2">➜</span> SYSTEM_DIAGNOSTIC: <span className="text-red-500">FAIL</span></p>
                 <p><span className="text-[#0066FF] mr-2">➜</span> TARGET_SECTOR: <span className="text-white">UNKNOWN</span></p>
                 <p><span className="text-[#0066FF] mr-2">➜</span> ERROR_CODE: <span className="text-white">ERR_NULL_POINTER_EXCEPTION</span></p>
@@ -76,7 +79,7 @@ export default function Error() {
 
       {/* FOOTER DECORATION */}
       <div className="absolute bottom-8 left-0 w-full text-center">
-        <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em]">
+        <p className="text-[10px] font-montserrat text-white/20 uppercase tracking-[0.5em]">
             System_Integrity: Compromised
         </p>
       </div>
@@ -117,8 +120,8 @@ export default function Error() {
         }
         @keyframes glitch-anim-2 {
           0% { clip-path: inset(10% 0 60% 0); transform: translate(4px, 0); }
-          20% { clip-path: inset(80% 0 5% 0); transform: translate(-4px, 0); }
-          40% { clip-path: inset(30% 0 20% 0); transform: translate(4px, 0); }
+          20% { clip-path: inset(80% 0 5% 0); transform: translate(-4px, -2px); }
+          40% { clip-path: inset(30% 0 20% 0); transform: translate(4px, 2px); }
           60% { clip-path: inset(10% 0 50% 0); transform: translate(-4px, 0); }
           80% { clip-path: inset(60% 0 10% 0); transform: translate(4px, 0); }
           100% { clip-path: inset(20% 0 80% 0); transform: translate(-4px, 0); }
