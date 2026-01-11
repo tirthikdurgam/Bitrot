@@ -14,6 +14,7 @@ const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null) // <--- NEW: Store DB Profile
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"identity" | "artifacts">("identity")
   
@@ -24,7 +25,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const supabase = createClient()
 
-  // 1. Initial User Check
+  // 1. Initial User Check & Profile Fetch
   useEffect(() => {
     const checkUser = async () => {
       try {
@@ -33,6 +34,18 @@ export default function ProfilePage() {
         
         if (session?.user) {
           setUser(session.user)
+
+          // --- FETCH CUSTOM USERNAME FROM DB ---
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('username')
+            .eq('id', session.user.id)
+            .single()
+          
+          if (userProfile) {
+            setProfile(userProfile)
+          }
+
           setLoading(false)
         } else {
           router.push("/login")
@@ -51,13 +64,20 @@ export default function ProfilePage() {
         const fetchArtifacts = async () => {
             setLoadingArtifacts(true)
             
-            let username = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
-            username = username.replace(/\s+/g, '_')
+            // PRIORITIZE DB USERNAME
+            // If profile.username exists (e.g. "tirthik"), use it. 
+            // Otherwise fallback to full name logic.
+            let targetUsername = profile?.username 
+            
+            if (!targetUsername) {
+                 targetUsername = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
+                 targetUsername = targetUsername.replace(/\s+/g, '_')
+            }
 
             const { data, error } = await supabase
                 .from('images')
                 .select('*')
-                .eq('killed_by', username)
+                .eq('killed_by', targetUsername) 
                 .order('created_at', { ascending: false })
                 .limit(50)
 
@@ -68,7 +88,7 @@ export default function ProfilePage() {
         }
         fetchArtifacts()
     }
-  }, [activeTab, user, supabase])
+  }, [activeTab, user, profile, supabase]) // Added profile dependency
 
   const maskEmail = (email: string) => {
     if (!email) return "Unknown"
@@ -97,7 +117,7 @@ export default function ProfilePage() {
   if (!user) return null
 
   return (
-    // MOBILE OPTIMIZATION: pt-24 to clear fixed navbars, px-4 for side padding
+    // MOBILE OPTIMIZATION: pt-24 to clear fixed navbars
     <div className="min-h-screen w-full flex items-center justify-center bg-[#050505] pt-24 pb-10 px-4 font-montserrat">
         
         {/* Background Glow */}
@@ -133,9 +153,12 @@ export default function ProfilePage() {
                         </div>
                     )}
                 </div>
+                
+                {/* --- UPDATED: Shows DB Username ('tirthik') or Fallback --- */}
                 <h1 className="text-xl font-bold text-white text-center font-montserrat uppercase tracking-wide">
-                    {user?.user_metadata?.full_name || "Anonymous Observer"}
+                    @{profile?.username || user?.user_metadata?.full_name?.replace(/\s+/g, '_') || "Anonymous"}
                 </h1>
+                
                 <p className="text-[10px] text-[#0066FF] font-montserrat font-bold mt-2 tracking-[0.2em] uppercase border border-[#0066FF]/30 bg-[#0066FF]/10 px-3 py-1 rounded-full">
                     Identity Verified
                 </p>
@@ -214,7 +237,7 @@ export default function ProfilePage() {
                                          <Loader2 className="animate-spin text-[#0066FF]" size={24} />
                                      </div>
                                 ) : artifacts.length > 0 ? (
-                                    // MOBILE OPTIMIZATION: grid-cols-2 (Mobile) -> grid-cols-3 (Desktop)
+                                    // MOBILE GRID: 2 cols on mobile, 3 on desktop
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pb-2">
                                         {artifacts.map((art) => (
                                             <div 
@@ -226,7 +249,7 @@ export default function ProfilePage() {
                                                     alt="Artifact" 
                                                     fill
                                                     className="object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500 grayscale group-hover:grayscale-0"
-                                                    unoptimized
+                                                    unoptimized={true}
                                                     priority={true} 
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
