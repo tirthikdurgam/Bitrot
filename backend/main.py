@@ -277,7 +277,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
 
             # --- DECAY CALCULATION ---
             try:
-                # Use last_viewed_timestamp to calculate how long since the last decay
+                # Use your existing 'last_viewed' column for timing
                 last_update_str = row.get('last_viewed')
                 if last_update_str:
                     last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp()
@@ -296,7 +296,8 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             earned_credits = 0
             kill_bonus = False
 
-            if row.get('status') == 'active':
+            # Use your existing 'is_destroyed' boolean to check state
+            if not row.get('is_destroyed', False):
                 old_integrity = row.get('bit_integrity', 100.0)
                 new_integrity = max(0.0, old_integrity - decay_amount)
                 
@@ -313,7 +314,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                         try:
                             a_data = db.supabase.table('users').select('credits').eq('id', author_id).single().execute()
                             if a_data.data:
-                                new_a_bal = (a_data.data['credits'] or 0) + 100
+                                new_a_bal = (a_data.data.get('credits', 0) or 0) + 100
                                 db.supabase.table('users').update({'credits': new_a_bal}).eq('id', author_id).execute()
                                 print(f"DEATH EVENT: Author {author_id} rewarded 100 credits.")
                         except Exception as e:
@@ -327,17 +328,15 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                         
                         kill_bonus = True # Mark for artifact record regardless of bonus eligibility
 
-                # Data to update in the database
-                image_update_data = {
-                    "id": row['id'],
+                # Internal dictionary update for this loop
+                row.update({
                     "bit_integrity": new_integrity,
                     "current_quality": new_integrity, 
                     "last_viewed": datetime.utcnow().isoformat(),
                     "witnesses": (row.get('witnesses') or 0) + 1,
-                    "status": "decayed" if new_integrity <= 0 else "active",
                     "is_archived": True if new_integrity <= 0 else False,
                     "is_destroyed": True if new_integrity <= 0 else False
-                }
+                })
                 
                 # Trigger physical file bitrot in the background
                 if new_integrity < 100 and row.get("storage_path"):
@@ -352,13 +351,10 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                         "timestamp": datetime.utcnow().isoformat()
                     })
 
-                row.update(image_update_data)
-            
             # --- FETCH COMMENTS FOR THIS POST ---
             c_res = db.supabase.table('comments').select('*').eq('post_id', row['id']).order('created_at').execute()
             final_comments = []
             for c in c_res.data:
-                # Get avatar/username for each commenter
                 u_res = db.supabase.table('users').select('username, avatar_url').eq('id', c['user_id']).single().execute()
                 final_comments.append({
                     "id": str(c['id']),
@@ -372,7 +368,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             s_path = row.get('storage_path')
             img_url = f"{SUPABASE_URL}/storage/v1/object/public/bitloss-images/{s_path}" if s_path else ""
 
-            # Add to the formatted response list
+            # Formatting the final response object for the frontend
             updated_posts.append({
                 "id": row['id'],
                 "username": p_author_name,
@@ -393,12 +389,12 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             # Sync integrity and witness counts back to Supabase
             upsert_data = [{
                 "id": p['id'],
-                "bit_integrity": p.get('bit_integrity', 100.0),
-                "current_quality": p.get('bit_integrity', 100.0),
+                "bit_integrity": p.get('bitIntegrity', 100.0),
+                "current_quality": p.get('bitIntegrity', 100.0),
                 "last_viewed": datetime.utcnow().isoformat(),
                 "witnesses": p.get('witnesses', 0),
-                "status": "decayed" if p.get('bit_integrity', 100.0) <= 0 else "active",
-                "is_archived": True if p.get('bit_integrity', 100.0) <= 0 else False
+                "is_archived": True if p.get('bitIntegrity', 100.0) <= 0 else False,
+                "is_destroyed": True if p.get('bitIntegrity', 100.0) <= 0 else False
             } for p in updated_posts]
             
             if upsert_data:
