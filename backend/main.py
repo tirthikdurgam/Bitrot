@@ -241,14 +241,18 @@ async def upload_image(
 
 @app.get("/feed")
 async def get_feed(request: Request, background_tasks: BackgroundTasks):
+    """
+    Main feed logic: Calculates decay, awards credits to viewers/authors, 
+    records destroyed artifacts, and returns formatted post data.
+    """
     if not db.supabase: return []
 
     try:
-        # 1. Identify Viewer
+        # 1. Identify the current viewer for credit rewards
         current_user = get_current_user(request)
         current_user_id = current_user['id'] if current_user else None
         
-        # 2. Fetch Active Posts
+        # 2. Fetch all image records from the database
         response = db.supabase.table('images').select('*').order('created_at', desc=True).execute()
         posts = response.data
         
@@ -259,41 +263,21 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
         current_time = time.time()
 
         for row in posts:
-            # --- FETCH RELATED DATA ---
-            # Comments
-            comment_res = db.supabase.table('comments').select('*').eq('post_id', row['id']).order('created_at').execute()
-            comments_data = []
-            for c in comment_res.data:
-                u_res = db.supabase.table('users').select('username, avatar_url').eq('id', c['user_id']).single().execute()
-                uname = u_res.data['username'] if u_res.data else 'Anonymous'
-                uavatar = u_res.data['avatar_url'] if u_res.data else None
-                comments_data.append({
-                    "id": str(c['id']),
-                    "username": uname,
-                    "avatar_url": uavatar,
-                    "content": c['content'],
-                    "created_at": c['created_at'],
-                    "parent_id": c['parent_id']
-                })
-            
-            # Author Data (Using uploader_id)
-            # Safe handle if uploader_id is null (for very old images)
+            # --- AUTHOR DATA (Mapped to uploader_id) ---
             author_id = row.get('uploader_id')
+            p_author_name = row.get('username', 'Unknown')
+            p_author_av = None
+            
             if author_id:
+                # Fetch author profile for the feed card
                 author_res = db.supabase.table('users').select('username, avatar_url').eq('id', author_id).single().execute()
-                author_username = author_res.data['username'] if author_res.data else row.get('username', 'Unknown')
-                author_avatar = author_res.data['avatar_url'] if author_res.data else None
-            else:
-                author_username = row.get('username', 'Unknown')
-                author_avatar = None
-
-            # Secret Check
-            secret_res = db.supabase.table('image_secrets').select('id').eq('image_id', row['id']).execute()
-            has_secret = len(secret_res.data) > 0
+                if author_res.data:
+                    p_author_name = author_res.data['username']
+                    p_author_av = author_res.data['avatar_url']
 
             # --- DECAY CALCULATION ---
-            # Timestamp Logic (Using last_viewed_timestamp)
             try:
+                # Use last_viewed_timestamp to calculate how long since the last decay
                 last_update_str = row.get('last_viewed_timestamp')
                 if last_update_str:
                     last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp()
@@ -304,11 +288,11 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
 
             time_diff = current_time - last_update
             
-            decay_rate = 0.05 * (1 + (row['witnesses'] / 50)) * (1 + (row['generations'] / 20))
+            # Algorithmic decay rate based on witnesses and generation depth
+            decay_rate = 0.05 * (1 + (row.get('witnesses', 0) / 50)) * (1 + (row.get('generations', 0) / 20))
             decay_amount = decay_rate * time_diff
 
-            # --- UPDATE LOGIC ---
-            image_update_data = {}
+            # --- UPDATE & REWARD LOGIC ---
             earned_credits = 0
             kill_bonus = False
 
@@ -316,55 +300,50 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 old_integrity = row.get('integrity_snapshot', 100.0)
                 new_integrity = max(0.0, old_integrity - decay_amount)
                 
-                # Passive Credit Logic
+                # Passive Viewer Reward: 1 Credit per 1% decay witnessed
                 if current_user_id:
                     credit_diff = int(old_integrity) - int(new_integrity)
                     if credit_diff > 0:
                         earned_credits += credit_diff
 
-                # --- DEATH EVENT ---
+                # --- DEATH EVENT (Integrity reaches 0) ---
                 if new_integrity <= 0 and old_integrity > 0:
-                    # 1. REWARD AUTHOR (+100)
+                    # A. REWARD ORIGINAL AUTHOR (+100 Credits)
                     if author_id:
                         try:
                             a_data = db.supabase.table('users').select('credits').eq('id', author_id).single().execute()
                             if a_data.data:
                                 new_a_bal = (a_data.data['credits'] or 0) + 100
                                 db.supabase.table('users').update({'credits': new_a_bal}).eq('id', author_id).execute()
-                                print(f"REWARD: Author {author_id} +100 (Decay Complete)")
+                                print(f"DEATH EVENT: Author {author_id} rewarded 100 credits.")
                         except Exception as e:
-                            print(f"Author Reward Error: {e}")
+                            print(f"Author Reward Failure: {e}")
 
-                    # 2. REWARD KILLER (+100 if not author)
+                    # B. REWARD KILLER (+100 Credits if viewer is not the author)
                     if current_user_id:
                         if author_id and current_user_id != author_id:
                             earned_credits += 100 
-                            kill_bonus = True
-                            print(f"REWARD: Killer {current_user_id} +100")
-                        else:
-                            kill_bonus = True
+                            print(f"DEATH EVENT: Viewer {current_user_id} earned Kill Bonus.")
+                        
+                        kill_bonus = True # Mark for artifact record regardless of bonus eligibility
 
-                # Prep DB Update
+                # Data to update in the database
                 image_update_data = {
                     "id": row['id'],
                     "integrity_snapshot": new_integrity,
                     "current_quality": new_integrity, 
-                    "last_viewed_timestamp": datetime.utcnow().isoformat(), # Mapped
+                    "last_viewed_timestamp": datetime.utcnow().isoformat(),
                     "witnesses": (row.get('witnesses') or 0) + 1,
                     "status": "decayed" if new_integrity <= 0 else "active",
                     "is_archived": True if new_integrity <= 0 else False,
-                    "is_destroyed": True if new_integrity <= 0 else False # Update existing column
+                    "is_destroyed": True if new_integrity <= 0 else False
                 }
                 
-                # Queue Visual Decay Task
-                if new_integrity < 100 and "active/" in row.get("storage_path", ""):
-                     background_tasks.add_task(
-                        process_remote_decay, 
-                        row["storage_path"], 
-                        new_integrity
-                    )
+                # Trigger physical file bitrot in the background
+                if new_integrity < 100 and row.get("storage_path"):
+                     background_tasks.add_task(process_remote_decay, row["storage_path"], new_integrity)
 
-                # Queue Artifact Record
+                # Queue artifact record to link destroyed image to the viewer
                 if kill_bonus and current_user_id:
                     artifacts_to_record.append({
                         "user_id": current_user_id,
@@ -373,77 +352,13 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                         "timestamp": datetime.utcnow().isoformat()
                     })
 
-            else:
-                image_update_data = {
-                    "id": row['id'],
-                    "integrity_snapshot": row['integrity_snapshot'],
-                    "current_quality": row['current_quality'],
-                    "last_viewed_timestamp": row.get('last_viewed_timestamp'),
-                    "witnesses": row['witnesses'],
-                    "status": row.get('status'),
-                    "is_archived": row['is_archived']
-                }
-
-            row.update(image_update_data)
-            updated_posts.append(row)
-            total_viewer_credits += earned_credits
-
-        # --- BATCH UPDATES ---
-        if updated_posts:
-            upsert_data = [{
-                "id": p['id'],
-                "integrity_snapshot": p['integrity_snapshot'],
-                "current_quality": p['current_quality'],
-                "last_viewed_timestamp": p['last_viewed_timestamp'],
-                "witnesses": p['witnesses'],
-                "status": p.get('status', 'active'),
-                "is_archived": p['is_archived'],
-                "is_destroyed": p.get('is_destroyed', False)
-            } for p in updated_posts if p.get('status') == 'active' or p.get('is_archived') is False] 
+                row.update(image_update_data)
             
-            if upsert_data:
-                db.supabase.table('images').upsert(upsert_data).execute()
-
-        # Award Viewer Credits
-        if current_user_id and total_viewer_credits > 0:
-            u_data = db.supabase.table('users').select('credits').eq('id', current_user_id).single().execute()
-            new_bal = (u_data.data['credits'] or 0) + total_viewer_credits
-            db.supabase.table('users').update({'credits': new_bal}).eq('id', current_user_id).execute()
-            print(f"CREDITS: Viewer {current_user_id} earned {total_viewer_credits}")
-
-        # Record Artifacts
-        if artifacts_to_record:
-            try:
-                db.supabase.table('user_artifacts').insert(artifacts_to_record).execute()
-                print(f"ARTIFACTS: Recorded {len(artifacts_to_record)}")
-            except Exception as e:
-                print(f"Artifact Error: {e}")
-
-        # --- FORMAT RESPONSE ---
-        final_response = []
-        base_url = SUPABASE_URL
-        
-        for post in updated_posts:
-            # Re-find author data for this specific post
-            post_author_id = post.get('uploader_id')
-            p_author_name = 'Unknown'
-            p_author_av = None
-            
-            if post_author_id:
-                 # Check if we already fetched it in loop? No, simplified: refetch or use cache if optimizing
-                 # For simplicity and correctness in this structure:
-                 # In a production app, we'd batch fetch all authors. Here we accept the N+1 for safety.
-                 pa_res = db.supabase.table('users').select('username, avatar_url').eq('id', post_author_id).single().execute()
-                 if pa_res.data:
-                     p_author_name = pa_res.data['username']
-                     p_author_av = pa_res.data['avatar_url']
-            else:
-                 p_author_name = post.get('username', 'Unknown')
-
-            # Comments construction
-            c_res = db.supabase.table('comments').select('*').eq('post_id', post['id']).order('created_at').execute()
+            # --- FETCH COMMENTS FOR THIS POST ---
+            c_res = db.supabase.table('comments').select('*').eq('post_id', row['id']).order('created_at').execute()
             final_comments = []
             for c in c_res.data:
+                # Get avatar/username for each commenter
                 u_res = db.supabase.table('users').select('username, avatar_url').eq('id', c['user_id']).single().execute()
                 final_comments.append({
                     "id": str(c['id']),
@@ -453,26 +368,59 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "created_at": c['created_at']
                 })
 
-            s_path = post.get('storage_path')
-            img_url = f"{base_url}/storage/v1/object/public/bitloss-images/{s_path}" if s_path else ""
+            # Construct final URL for the image
+            s_path = row.get('storage_path')
+            img_url = f"{SUPABASE_URL}/storage/v1/object/public/bitloss-images/{s_path}" if s_path else ""
 
-            final_response.append({
-                "id": post['id'],
+            # Add to the formatted response list
+            updated_posts.append({
+                "id": row['id'],
                 "username": p_author_name,
                 "avatar_url": p_author_av,
                 "image": img_url,
-                "bitIntegrity": post['integrity_snapshot'],
-                "generations": post.get('generations', 0),
-                "witnesses": post['witnesses'],
-                "caption": post.get("caption", ""),
-                "has_secret": post.get("has_secret", False),
+                "bitIntegrity": row.get('integrity_snapshot', 100.0),
+                "generations": row.get('generations', 0),
+                "witnesses": row.get('witnesses', 0),
+                "caption": row.get("caption", ""),
+                "has_secret": row.get("has_secret", False),
                 "comments": final_comments
             })
+            
+            total_viewer_credits += earned_credits
 
-        return final_response
+        # --- BATCH DATABASE UPDATES ---
+        if updated_posts:
+            # Sync integrity and witness counts back to Supabase
+            upsert_data = [{
+                "id": p['id'],
+                "integrity_snapshot": p.get('integrity_snapshot', 100.0),
+                "current_quality": p.get('integrity_snapshot', 100.0),
+                "last_viewed_timestamp": datetime.utcnow().isoformat(),
+                "witnesses": p.get('witnesses', 0),
+                "status": "decayed" if p.get('integrity_snapshot', 100.0) <= 0 else "active",
+                "is_archived": True if p.get('integrity_snapshot', 100.0) <= 0 else False
+            } for p in updated_posts]
+            
+            if upsert_data:
+                db.supabase.table('images').upsert(upsert_data).execute()
+
+        # Finalize credits for the viewer
+        if current_user_id and total_viewer_credits > 0:
+            u_data = db.supabase.table('users').select('credits').eq('id', current_user_id).single().execute()
+            new_bal = (u_data.data.get('credits', 0) or 0) + total_viewer_credits
+            db.supabase.table('users').update({'credits': new_bal}).eq('id', current_user_id).execute()
+
+        # Insert artifact records for images destroyed during this session
+        if artifacts_to_record:
+            try:
+                db.supabase.table('user_artifacts').insert(artifacts_to_record).execute()
+            except Exception as e:
+                print(f"Artifact Logging Error: {e}")
+
+        return updated_posts
 
     except Exception as e:
-        print(f"Feed Error: {e}")
+        print(f"Feed System Error: {e}")
         return []
 
 @app.post("/interact")
