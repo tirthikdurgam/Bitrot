@@ -11,7 +11,7 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import httpx
-
+from decay import process_remote_decay
 # Custom/Third-Party Libraries
 import bitrot
 from ghosttag import GhostTag
@@ -89,27 +89,6 @@ class InteractRequest(BaseModel):
     post_id: str
     action: str # "heal" or "corrupt"
 
-# --- HELPER: BACKGROUND DECAY TASK ---
-def process_remote_decay(storage_path: str, current_health: float):
-    if not storage_path or not db.supabase:
-        return
-    try:
-        bucket_name = "bitloss-images"
-        # print(f"Processing {storage_path} in memory...")
-        
-        file_data = db.supabase.storage.from_(bucket_name).download(storage_path)
-        
-        integrity_ratio = max(0.01, current_health / 100.0)
-        rotted_data = bitrot.decay_bytes(file_data, integrity=integrity_ratio)
-        
-        db.supabase.storage.from_(bucket_name).upload(
-            storage_path,
-            rotted_data,
-            file_options={"x-upsert": "true", "content-type": "image/jpeg"}
-        )
-        # print(f"SUCCESS: Rotted {storage_path}")
-    except Exception as e:
-        print(f"SKIPPING DECAY for {storage_path}: {e}")
 
 # --- HELPER: STRICT USER AUTH ---
 def get_current_user(request: Request):
@@ -229,7 +208,7 @@ async def upload_image(
 async def get_feed(request: Request, background_tasks: BackgroundTasks):
     """
     Main feed logic: Fetches ONLY active images, calculates decay, 
-    and moves them to archive if they die.
+    awards credits, increments kill counts, and moves dead images to archive.
     """
     if not db.supabase: return []
 
@@ -238,7 +217,6 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
         current_user = get_current_user(request)
         current_user_id = current_user['id'] if current_user else None
         
-        # --- THE FIX IS HERE ---
         # 2. Fetch ONLY images that are NOT archived
         response = db.supabase.table('images')\
             .select('*')\
@@ -256,15 +234,13 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
         current_time = time.time()
 
         for row in posts:
-            # ... (Rest of the loop logic remains exactly the same) ...
-            # ... keeping author fetching, decay math, etc. ...
-            
             # --- AUTHOR DATA ---
             author_id = row.get('uploader_id')
             p_author_name = row.get('username', 'Unknown')
             p_author_av = None
             
             if author_id:
+                # Fetch author profile for the feed card
                 author_res = db.supabase.table('users').select('username, avatar_url').eq('id', author_id).single().execute()
                 if author_res.data:
                     p_author_name = author_res.data['username']
@@ -272,14 +248,18 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
 
             # --- DECAY CALCULATION ---
             try:
+                # Use last_viewed to calculate time delta
                 last_update_str = row.get('last_viewed')
-                last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp() if last_update_str else current_time
+                if last_update_str:
+                    last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp()
+                else:
+                    last_update = datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')).timestamp()
             except:
                 last_update = current_time
 
             time_diff = current_time - last_update
             
-            # Rate: 5% per hour
+            # Decay Rate: 5% per HOUR (div by 3600) scaled by activity
             decay_rate = (0.05 / 3600.0) * (1 + (row.get('witnesses', 0) / 50)) * (1 + (row.get('generations', 0) / 20))
             decay_amount = decay_rate * time_diff
 
@@ -293,6 +273,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             if not is_destroyed_now:
                 new_integrity = max(0.0, old_integrity - decay_amount)
                 
+                # Viewer gets credits for witnessing decay
                 if current_user_id:
                     credit_diff = int(old_integrity) - int(new_integrity)
                     if credit_diff > 0:
@@ -302,7 +283,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 if new_integrity <= 0 and old_integrity > 0:
                     is_destroyed_now = True 
                     
-                    # Rewards
+                    # A. Reward Author (+100)
                     if author_id:
                         try:
                             a_data = db.supabase.table('users').select('credits').eq('id', author_id).single().execute()
@@ -310,6 +291,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                             db.supabase.table('users').update({'credits': current_a_creds + 100}).eq('id', author_id).execute()
                         except: pass
 
+                    # B. Reward Killer (+100)
                     if current_user_id:
                         if author_id and current_user_id != author_id:
                             total_viewer_credits += 100 
@@ -325,6 +307,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "is_archived": is_destroyed_now # Sync archive status
                 })
                 
+                # Add to DB Batch Update List
                 db_updates.append({
                     "id": row['id'],
                     "bit_integrity": new_integrity,
@@ -335,6 +318,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "is_archived": row['is_archived']
                 })
 
+                # Trigger File Bitrot
                 if new_integrity < 100 and row.get("storage_path"):
                      background_tasks.add_task(process_remote_decay, row["storage_path"], new_integrity)
 
@@ -351,6 +335,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "created_at": c['created_at']
                 })
 
+            # Check for Secret
             has_secret = False
             try:
                 s_chk = db.supabase.table('image_secrets').select('image_id').eq('image_id', row['id']).execute()
@@ -360,12 +345,6 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             s_path = row.get('storage_path')
             img_url = f"{SUPABASE_URL}/storage/v1/object/public/bitloss-images/{s_path}" if s_path else ""
 
-            # Only append to response if it didn't JUST die, or maybe you WANT to see the death frame?
-            # If you want it to disappear INSTANTLY upon death, check is_destroyed_now here.
-            # But usually, it's cool to see it hit 0% once, then disappear on refresh.
-            # The current logic will show it at 0% this one time (because we fetched it while it was active).
-            # Next refresh, the DB filter .eq('is_archived', False) will catch it.
-            
             final_response_data.append({
                 "id": row['id'],
                 "username": p_author_name,

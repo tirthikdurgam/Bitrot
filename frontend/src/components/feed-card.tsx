@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send, Unlock, Fingerprint, User as UserIcon, ArrowRight } from "lucide-react"
+import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send, User as UserIcon, Fingerprint } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
@@ -47,8 +47,10 @@ export default function FeedCard({
   const router = useRouter()
   const supabase = createClient()
   
-  // --- CONFIG ---
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+  // --- HARDENED API CONFIG ---
+  // Removes trailing slashes to prevent "//interact" errors
+  const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+  const API_URL = RAW_API_URL.replace(/\/$/, "")
 
   // State
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
@@ -98,9 +100,8 @@ export default function FeedCard({
       lastTapTime.current = now
 
       if (tapCount.current === 3) {
-          // Trigger Redirect
           router.push(`/decipher/${id}`)
-          tapCount.current = 0 // Reset
+          tapCount.current = 0 
       }
   }
 
@@ -163,12 +164,15 @@ export default function FeedCard({
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) return
         
+        console.log(`Transmitting interaction to: ${API_URL}/interact`)
+
         const res = await fetch(`${API_URL}/interact`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${session.access_token}`
             },
+            // CORRECT: Using snake_case 'post_id' to match Backend Pydantic model
             body: JSON.stringify({ post_id: id, action })
         })
 
@@ -218,6 +222,7 @@ export default function FeedCard({
             "Content-Type": "application/json",
             "Authorization": `Bearer ${session.access_token}` 
         },
+        // CORRECT: Using snake_case 'post_id'
         body: JSON.stringify({ post_id: id, content: text, parent_id: parentId })
       })
       

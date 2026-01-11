@@ -1,93 +1,38 @@
-import os
-import random
-from datetime import datetime
-from dotenv import load_dotenv
-from supabase import create_client, Client
 import bitrot
+import database as db
 
-load_dotenv()
-
-SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-supabase: Client = None
-if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        print(f"Warning: Could not connect to Supabase: {e}")
-
-def calculate_decay(image_row, killer_name="Anonymous"):
+def process_remote_decay(storage_path: str, current_health: float):
     """
-    Calculates integrity. If 0%, marks as destroyed.
-    Cleanup is handled asynchronously by the reaper service.
+    Background Task: Downloads the image, applies bitrot in memory,
+    and re-uploads it to Supabase.
     """
-    current_val = image_row.get('bit_integrity')
-    if current_val is None:
-        current_val = image_row.get('current_quality', 100.0)
-        
-    current_integrity = float(current_val)
-    
-    # Decay rate: 0.05% to 0.1% per view
-    decay_amount = random.uniform(0.05, 0.1) 
-    new_integrity = max(0.0, current_integrity - decay_amount)
+    # Safety checks
+    if not storage_path or not db.supabase:
+        return
 
-    updates = {
-        "bit_integrity": new_integrity,
-        "current_quality": new_integrity, 
-        "generations": (image_row.get('generations') or 0) + 1,
-        "last_viewed": datetime.utcnow().isoformat()
-    }
-
-    if new_integrity <= 0 and current_integrity > 0:
-        print(f"IMAGE DESTROYED by {killer_name}")
-        updates["killed_by"] = killer_name
-        updates["is_destroyed"] = True 
-
-    return updates
-
-def inflict_bitloss(input_path, output_path, health):
-    try:
-        integrity_val = max(0.01, min(1.0, float(health) / 100.0))
-        bitrot.decay_file(input_path, output_path, integrity=integrity_val)
-        print(f"Visual Decay Applied: {health:.2f}%")
-        return True
-    except Exception as e:
-        print(f"Visual Decay Failed: {e}")
-        return False
-
-def process_remote_decay(storage_path, integrity):
-    if not supabase: return
+    # Filter: Only decay files in the 'active/' folder
+    if "active/" not in storage_path:
+        return
 
     try:
-        if "active/" not in storage_path:
-            return
-
-        print(f"Processing Remote Decay: {storage_path} @ {integrity:.2f}%")
+        bucket_name = "bitloss-images"
         
-        filename = storage_path.split("/")[-1]
-        local_input = f"temp_in_{filename}"
-        local_output = f"temp_out_{filename}"
-
-        with open(local_input, "wb") as f:
-            res = supabase.storage.from_("bitloss-images").download(storage_path)
-            f.write(res)
-
-        inflict_bitloss(local_input, local_output, integrity)
-
-        with open(local_output, "rb") as f:
-            supabase.storage.from_("bitloss-images").upload(
-                storage_path,
-                f,
-                file_options={"upsert": "true", "content-type": "image/png"}
-            )
+        # 1. Download File (Bytes)
+        # print(f"Processing {storage_path}...")
+        file_data = db.supabase.storage.from_(bucket_name).download(storage_path)
         
-        if os.path.exists(local_input): os.remove(local_input)
-        if os.path.exists(local_output): os.remove(local_output)
+        # 2. Apply Bitrot (In-Memory)
+        # Map 0-100 scale to 0.0-1.0 scale
+        integrity_ratio = max(0.01, current_health / 100.0)
+        rotted_data = bitrot.decay_bytes(file_data, integrity=integrity_ratio)
         
-        print("Remote Decay Complete")
+        # 3. Upload Result (Overwrite)
+        db.supabase.storage.from_(bucket_name).upload(
+            storage_path,
+            rotted_data,
+            file_options={"x-upsert": "true", "content-type": "image/jpeg"}
+        )
+        # print(f"SUCCESS: Rotted {storage_path}")
 
     except Exception as e:
-        print(f"Remote Decay Failed: {e}")
-        if os.path.exists(local_input): os.remove(local_input)
-        if os.path.exists(local_output): os.remove(local_output)
+        print(f"DECAY ERROR for {storage_path}: {e}")
