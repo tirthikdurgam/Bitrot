@@ -155,7 +155,7 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* --- UPDATED: Shows DB Username ('tirthik') or Fallback --- */}
-                <h1 className="text-xl font-bold text-white text-center font-montserrat uppercase tracking-wide">
+                <h1 className="text-xl font-bold text-white text-center font-montserrat tracking-wide">
                     @{profile?.username || user?.user_metadata?.full_name?.replace(/\s+/g, '_') || "Anonymous"}
                 </h1>
                 

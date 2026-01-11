@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send } from "lucide-react"
+import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send, Unlock, Fingerprint } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
@@ -50,9 +50,15 @@ export default function FeedCard({
   const [isHealing, setIsHealing] = useState(false)
   const [isCorrupting, setIsCorrupting] = useState(false)
   
+  // --- MOBILE DECRYPT STATE ---
+  const [isPressing, setIsPressing] = useState(false)
+  const pressTimer = useRef<NodeJS.Timeout | null>(null)
+  
   const isDead = bitIntegrity <= 0
   const isSecretActive = has_secret && bitIntegrity >= 80
-  const secretHandlers = useSecretGate(id, isSecretActive, isHovered)
+  
+  // Destructure the 'unlock' function and 'isUnlocked' state
+  const { isUnlocked, unlock } = useSecretGate(id, isSecretActive, isHovered)
   
   const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
   const latestComments = localComments.filter(c => !c.parent_id).slice(-2);
@@ -99,7 +105,6 @@ export default function FeedCard({
 
   const handleHeal = async () => {
     if (!(await checkAuth())) return
-    
     if(userCredits < 10) return alert("Not enough credits!")
     setIsHealing(true)
     setTimeout(() => setIsHealing(false), 1000)
@@ -107,10 +112,26 @@ export default function FeedCard({
 
   const handleCorrupt = async () => {
     if (!(await checkAuth())) return
-
     if(userCredits < 10) return alert("Not enough credits!")
     setIsCorrupting(true)
     setTimeout(() => setIsCorrupting(false), 1000)
+  }
+
+  // --- TOUCH HANDLERS (Mobile Decrypt) ---
+  const handleTouchStart = () => {
+    if (!isSecretActive || isUnlocked) return
+    setIsPressing(true)
+    
+    // Trigger unlock after 1.5 seconds of holding
+    pressTimer.current = setTimeout(() => {
+        unlock()
+        setIsPressing(false)
+    }, 1500)
+  }
+
+  const handleTouchEnd = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+    setIsPressing(false)
   }
 
   return (
@@ -132,22 +153,94 @@ export default function FeedCard({
               
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white tracking-wide">@{username}</span>
-                {isSecretActive && <Lock size={12} className="text-[#00FF41] drop-shadow-[0_0_5px_#00FF41]" />}
+                
+                {/* LOCKED STATE */}
+                {isSecretActive && !isUnlocked && (
+                    <div className="flex items-center gap-1">
+                        <Lock size={12} className="text-[#00FF41] drop-shadow-[0_0_5px_#00FF41]" />
+                        {/* Only show text instruction on Desktop */}
+                        <span className="text-[9px] text-[#00FF41]/70 font-mono hidden md:inline">TYPE 'OPEN'</span>
+                    </div>
+                )}
+                
+                {/* UNLOCKED STATE */}
+                {isUnlocked && (
+                    <div className="flex items-center gap-1">
+                        <Unlock size={12} className="text-red-500 drop-shadow-[0_0_5px_red]" />
+                        <span className="text-[9px] text-red-500 font-mono tracking-widest">DECRYPTED</span>
+                    </div>
+                )}
               </div>
           </div>
       </div>
 
-      {/* IMAGE */}
-      <div className="relative w-full aspect-square bg-black/50 z-10 overflow-hidden">
+      {/* IMAGE CONTAINER */}
+      <div 
+        className="relative w-full aspect-square bg-black/50 z-10 overflow-hidden"
+        // --- TOUCH EVENTS ---
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onContextMenu={(e) => e.preventDefault()} // Block right-click menu
+      >
         <Image 
           src={image} 
           alt={username} 
           fill 
           sizes="(max-width: 768px) 100vw, 600px"
-          unoptimized={true} 
-          className={`object-cover transition-all duration-700 ${isDead ? 'grayscale contrast-150 brightness-75 sepia-[.3]' : 'group-hover:scale-[1.02]'}`}
-          {...(isSecretActive ? secretHandlers : {})}
+          unoptimized={true} // Vercel Optimization Bypass
+          className={`object-cover transition-all duration-700 
+            ${isDead ? 'grayscale contrast-150 brightness-75 sepia-[.3]' : 'group-hover:scale-[1.02]'}
+            ${isPressing ? 'scale-95 brightness-150 hue-rotate-90' : ''} 
+          `}
         />
+
+        {/* --- MOBILE HINT (Only visible on mobile if locked) --- */}
+        {isSecretActive && !isUnlocked && !isPressing && (
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none md:hidden opacity-60 flex flex-col items-center">
+                 <Fingerprint size={48} className="text-white animate-pulse mb-2" />
+                 <p className="text-[10px] font-mono font-bold text-white tracking-widest bg-black/60 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">HOLD TO DECRYPT</p>
+             </div>
+        )}
+
+        {/* --- DECRYPTING ANIMATION (While Holding) --- */}
+        <AnimatePresence>
+            {isPressing && !isUnlocked && (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-40 bg-black/70 flex flex-col items-center justify-center backdrop-blur-sm"
+                >
+                    <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden mb-4">
+                        <motion.div 
+                            className="h-full bg-[#00FF41] shadow-[0_0_10px_#00FF41]"
+                            initial={{ width: 0 }}
+                            animate={{ width: "100%" }}
+                            transition={{ duration: 1.5, ease: "linear" }}
+                        />
+                    </div>
+                    <div className="text-[#00FF41] font-mono text-xs font-black tracking-widest animate-pulse">
+                        BYPASSING SECURITY...
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* --- SUCCESS OVERLAY --- */}
+        {isUnlocked && (
+             <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                className="absolute inset-0 z-30 bg-black/80 flex flex-col items-center justify-center p-8 text-center border-4 border-[#00FF41] box-border"
+             >
+                 <div className="text-4xl mb-4">🔓</div>
+                 <h3 className="text-[#00FF41] text-xl font-black uppercase tracking-widest mb-2">Payload Decrypted</h3>
+                 <p className="text-white/80 font-mono text-sm">
+                     "Access Granted. Hidden data layer exposed."
+                 </p>
+             </motion.div>
+        )}
 
         {isDead && (
             <div className="absolute inset-0 flex items-center justify-center z-30 bg-black/80 backdrop-blur-sm">
@@ -158,8 +251,6 @@ export default function FeedCard({
 
       {/* FOOTER */}
       <div className="p-4 relative z-10 bg-black/20">
-         
-         {/* ACTION BAR */}
          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-4">
                 
@@ -199,7 +290,6 @@ export default function FeedCard({
             </div>
          </div>
 
-         {/* CAPTION */}
          {caption && (
            <div className="mb-2 text-[15px] text-white/90 leading-tight">
              <span className="font-bold mr-2">@{username}</span>
@@ -207,14 +297,12 @@ export default function FeedCard({
            </div>
          )}
 
-         {/* VIEW COMMENTS LINK */}
          {localComments.length > 0 && (
             <button onClick={() => setShowComments(!showComments)} className="text-white/50 text-sm mb-2 hover:text-white/70 transition-colors">
                View all {localComments.length} comments
             </button>
          )}
 
-         {/* PREVIEW LATEST COMMENTS */}
          <div className="space-y-1 mb-3">
             {latestComments.map(comment => (
                 <div key={comment.id} className="text-sm text-white/80 truncate">
@@ -224,7 +312,6 @@ export default function FeedCard({
             ))}
          </div>
 
-         {/* INPUT TRIGGER */}
          <div onClick={() => setShowComments(true)} className="flex items-center gap-3 pt-4 border-t border-white/10 cursor-pointer group/input">
              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/5"></div>
              <div className="flex-1 text-white/30 text-sm group-hover/input:text-white/50 transition-colors">Add a comment...</div>
@@ -232,7 +319,6 @@ export default function FeedCard({
          </div>
       </div>
 
-      {/* COMMENT DRAWER */}
       <AnimatePresence>
         {showComments && (
           <motion.div 
