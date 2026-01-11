@@ -58,7 +58,6 @@ async def lifespan(app: FastAPI):
     
     async def reaper_loop():
         while True:
-            # CORRECT USAGE: calling the function directly
             await archive_dead_images()
             await asyncio.sleep(60)
 
@@ -75,13 +74,13 @@ async def lifespan(app: FastAPI):
 
 # --- APP INITIALIZATION ---
 app = FastAPI(lifespan=lifespan)
-# In main.py
 
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://bitrotdev.vercel.app",
     "https://bitloss.vercel.app",
+    "https://bitrot.onrender.com"
 ]
 
 app.add_middleware(
@@ -120,47 +119,79 @@ def process_remote_decay(storage_path: str, current_health: float):
     except Exception as e:
         print(f"SKIPPING DECAY for {storage_path}: {e}")
 
-# --- HELPER: USER AUTH ---
+# --- HELPER: STRICT USER AUTH (UPDATED) ---
 def get_current_user(request: Request):
-    client_ip = request.client.host
-    secure_id = utils.get_anonymous_id(client_ip)
-    new_name = utils.generate_username()
-    user = db.get_or_create_user(secure_id, new_name)
-    if not user:
-        return {"username": "Offline_Ghost", "ip_address": secure_id, "entropy_score": 0, "kills": 0}
-    return user
+    """
+    STRICT AUTHENTICATION:
+    This function now REJECTS any request without a valid Bearer Token.
+    No more anonymous users.
+    """
+    
+    auth_header = request.headers.get('Authorization')
+    
+    # 1. Check if Header Exists
+    if not auth_header or not auth_header.startswith("Bearer "):
+        print("AUTH ERROR: Missing or Invalid Authorization Header")
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+
+    try:
+        token = auth_header.split(" ")[1]
+        
+        # 2. Verify with Supabase
+        user_response = db.supabase.auth.get_user(token)
+        
+        if not user_response or not user_response.user:
+            raise Exception("Invalid Token")
+
+        user_id = user_response.user.id
+        
+        # 3. Fetch Profile from Public Table
+        profile_res = db.supabase.table("users").select("*").eq("id", user_id).execute()
+        
+        if profile_res.data and len(profile_res.data) > 0:
+            return profile_res.data[0]
+        else:
+            # Edge Case: User exists in Auth but not in Public table (rare sync issue)
+            # We can auto-fix this or just raise error. Let's raise error for safety.
+            print(f"AUTH ERROR: User {user_id} has no public profile.")
+            raise HTTPException(status_code=404, detail="User profile not found")
+                
+    except Exception as e:
+        print(f"AUTH ERROR: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 # --- ROUTES ---
 
 @app.get("/me")
 def get_my_identity(request: Request):
+    # This will now throw 401 if not logged in
     return get_current_user(request)
 
 @app.post("/upload")
 async def upload_image(
+    request: Request, # <--- Added Request to access Headers
     file: UploadFile = File(...), 
-    author: str = Form(...),   # <--- Matches frontend 'formData.append("author", ...)'
     caption: str = Form(None),
     secret: str = Form(None)
 ):
     if not db.supabase:
         raise HTTPException(status_code=503, detail="Database not connected")
 
+    # 1. Enforce Auth
+    user = get_current_user(request)
+    author_username = user['username'] # Use the REAL username from DB
+
     try:
-        # 1. Read file bytes
         file_bytes = await file.read()
         
-        # 2. Determine Extension & Filename
-        # If there is a secret, we force PNG (lossless) to protect the hidden data
         original_ext = file.filename.split('.')[-1]
         file_ext = "png" if secret else original_ext 
         
         unique_id = f"{int(time.time())}_{random.randint(100, 999)}"
         filename = f"{unique_id}.{file_ext}"
 
-        # 3. Define Paths
-        active_path = f"active/{filename}"      # The Victim
-        original_path = f"originals/{filename}" # The Memory
+        active_path = f"active/{filename}"      
+        original_path = f"originals/{filename}" 
 
         print(f"Uploading Active Copy: {active_path}...")
         db.supabase.storage.from_("bitloss-images").upload(
@@ -176,10 +207,9 @@ async def upload_image(
             file_options={"content-type": f"image/{file_ext}"}
         )
 
-        # 4. Create Database Record
         image_payload = {
-            "username": author,  # <--- Mapped: form 'author' -> db 'username'
-            "storage_path": active_path, # Feed loads the ACTIVE (decaying) path
+            "username": author_username, # <--- Uses trusted DB username
+            "storage_path": active_path, 
             "bit_integrity": 100.0,
             "current_quality": 100.0,
             "caption": caption if caption else "",
@@ -188,7 +218,7 @@ async def upload_image(
             "is_archived": False
         }
         
-        print(f"Creating image record for user: {author}...")
+        print(f"Creating image record for user: {author_username}...")
         response = db.supabase.table("images").insert(image_payload).execute()
         
         if not response.data:
@@ -196,7 +226,6 @@ async def upload_image(
             
         new_image_id = response.data[0]['id']
 
-        # 5. Handle Secret (if present)
         if secret:
             print(f"Encrypting secret for image {new_image_id}...")
             secret_payload = {
@@ -212,32 +241,37 @@ async def upload_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/feed")
-def get_feed(request: Request, background_tasks: BackgroundTasks, x_user_name: str = Header("Anonymous")): # <--- Capture User Name
+def get_feed(request: Request, background_tasks: BackgroundTasks):
     if not db.supabase: return []
     
     posts = db.get_live_posts() 
     results = []
 
     for post in posts:
-        # Use our smart decay function instead of hardcoded math
-        # This handles the integrity drop AND records the killer if it hits 0%
-        updates = calculate_decay(post, killer_name=x_user_name)
+        # We don't enforce login strictly for VIEWING the feed, just interactions
+        # So we pass "Anonymous" as killer_name if headers are missing
+        viewer_name = "Anonymous"
+        try:
+            # Try to get real name, but don't crash if unauth (passive viewing)
+            auth_header = request.headers.get('Authorization')
+            if auth_header:
+                user = get_current_user(request)
+                viewer_name = user['username']
+        except:
+            pass
+
+        updates = calculate_decay(post, killer_name=viewer_name)
         
-        # Extract new values for response
         new_integrity = updates["bit_integrity"]
         new_generations = updates["generations"]
         
-        # Update Database
         try:
-            # We add 'witnesses' increment here manually since decay.py focuses on integrity
             updates["witnesses"] = (post.get("witnesses") or 0) + 1
-            
             update_query = db.supabase.table("images").update(updates).eq("id", post["id"])
             safe_db_execute(update_query)
         except Exception as e:
             print(f"DB UPDATE ERROR: {e}")
 
-        # Secret Purge Logic (Keep existing)
         if new_integrity < 80.0:
             try:
                 if post.get("has_secret"):
@@ -246,7 +280,6 @@ def get_feed(request: Request, background_tasks: BackgroundTasks, x_user_name: s
             except Exception as e:
                 pass 
 
-        # Visual Decay Processing (Keep existing)
         if post.get("storage_path") and new_integrity < 100 and "active/" in post.get("storage_path", ""):
             background_tasks.add_task(
                 process_remote_decay, 
@@ -254,7 +287,6 @@ def get_feed(request: Request, background_tasks: BackgroundTasks, x_user_name: s
                 new_integrity
             )
 
-        # Comment Fetching (Keep existing)
         processed_comments = []
         try:
             comment_query = db.supabase.table("comments")\
@@ -266,6 +298,10 @@ def get_feed(request: Request, background_tasks: BackgroundTasks, x_user_name: s
             raw_data = response.data if response.data else []
             
             for c in raw_data:
+                # --- UPDATE: Fetch commenter avatar if possible ---
+                # We can do a join in Supabase or a separate fetch. 
+                # Ideally, your comments table should JOIN with users to get avatar_url in one go.
+                # For now, we trust the client logic or leave it basic.
                 processed_comments.append({
                     "id": str(c.get('id')),
                     "username": c.get('username', 'Anonymous'),
@@ -306,8 +342,6 @@ def get_graveyard():
     results = []
     for post in res:
         final_path = post.get("original_storage_path") or post.get("storage_path")
-        
-        # FIX: Ensure we don't send "None" if URL is missing
         base_url = SUPABASE_URL if SUPABASE_URL else "https://PROJECT_ID.supabase.co"
         
         results.append({
@@ -328,8 +362,6 @@ def get_archive():
     results = []
     for post in res:
         final_path = post.get("original_storage_path") or post.get("storage_path")
-        
-        # FIX: Ensure we don't send "None" if URL is missing
         base_url = SUPABASE_URL if SUPABASE_URL else "https://PROJECT_ID.supabase.co"
 
         results.append({
@@ -361,14 +393,20 @@ def get_trending():
 
 @app.post("/comment")
 async def post_comment(request: Request, body: dict):
+    # STRICT AUTH: Will throw 401 if user is not logged in
     user = get_current_user(request)
+    
     if db.supabase:
         post_data = db.supabase.table("images").select("current_quality").eq("id", body['post_id']).execute()
         current_integrity = 100.0
         if post_data.data:
             current_integrity = post_data.data[0].get('current_quality', 100.0)
+        
         parent_id = body.get('parent_id')
+        
+        # Now guaranteed to be the REAL username
         db.add_comment(body['post_id'], user['username'], body['content'], current_integrity, parent_id)
+        
     return {"status": "Comment recorded"}
 
 @app.get("/reveal/{post_id}")

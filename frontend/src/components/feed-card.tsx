@@ -12,6 +12,7 @@ import CommentSection from "./comment-section"
 export interface Comment {
   id: string
   username: string
+  avatar_url?: string | null
   content: string
   created_at: string
   parent_id?: string | null
@@ -79,10 +80,6 @@ export default function FeedCard({
         }
 
         // 2. Get Post Author (Database)
-        // If the post author is ME, just use my session avatar immediately (Optimization)
-        // We match loosely on username logic or assume if session avatar exists and we just posted
-        
-        // Fetch from public.users table (Now requires avatar_url column)
         const { data: authorData } = await supabase
             .from('users')
             .select('avatar_url')
@@ -92,7 +89,6 @@ export default function FeedCard({
         if (authorData?.avatar_url) {
             setAuthorAvatar(authorData.avatar_url)
         } 
-        // Fallback: If DB fetch failed but we know it's us (rough check), use session
         else if (user?.user_metadata?.avatar_url && 
                 (user.user_metadata.full_name === username || username.includes(user.email?.split('@')[0] || ''))) {
              setAuthorAvatar(user.user_metadata.avatar_url)
@@ -111,12 +107,20 @@ export default function FeedCard({
   }
 
   const handlePostComment = async (text: string, parentId?: string) => {
-    if (!(await checkAuth())) return
+    // 1. Get the Session explicitly to access the Access Token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session) {
+        router.push("/login")
+        return
+    }
 
     try {
+      // Optimistic Update
       const newTempComment: Comment = {
         id: Math.random().toString(),
-        username: "You",
+        username: "You", // This shows "You" instantly
+        avatar_url: currentUserAvatar,
         content: text,
         created_at: new Date().toISOString(),
         parent_id: parentId || null
@@ -124,9 +128,13 @@ export default function FeedCard({
 
       setLocalComments(prev => [...prev, newTempComment])
 
+      // 2. Send the Token in the Authorization Header
       await fetch("https://bitrot.onrender.com/comment", { 
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}` // <--- THIS FIXES THE RANDOM USERNAME
+        },
         body: JSON.stringify({ 
             post_id: id, 
             content: text, 
@@ -182,7 +190,6 @@ export default function FeedCard({
       {/* HEADER */}
       <div className="px-4 py-3 flex items-center justify-between relative z-10 border-b border-white/5 bg-white/5">
           <div className="flex items-center gap-3">
-              {/* --- POST AUTHOR AVATAR --- */}
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00FF41]/20 to-purple-500/20 border border-white/10 p-[2px] relative overflow-hidden">
                 <div className="w-full h-full rounded-full bg-black/50 overflow-hidden relative">
                     {authorAvatar ? (
@@ -191,7 +198,7 @@ export default function FeedCard({
                             alt={username} 
                             fill 
                             className="object-cover" 
-                            unoptimized={true} // Bypass Vercel
+                            unoptimized={true} 
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/5">

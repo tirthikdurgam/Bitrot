@@ -1,4 +1,3 @@
-# FORCE UPDATE: PROXY REMOVED
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -18,7 +17,6 @@ if not url or not key:
     print("WARNING: Supabase credentials missing in backend/.env")
 else:
     try:
-        # --- FIXED: No proxy argument here ---
         supabase = create_client(url, key)
         print(f"Database Connected (Admin Mode: {bool(service_key)})")
     except Exception as e:
@@ -26,36 +24,19 @@ else:
 
 # --- USER FUNCTIONS ---
 
-def get_or_create_user(ip_address, username):
-    if not supabase: return None
-    try:
-        res = supabase.table("users").select("*").eq("ip_address", ip_address).execute()
-        if res.data:
-            return res.data[0]
-        
-        new_user = {
-            "ip_address": ip_address, 
-            "username": username,
-            "entropy_score": 0,
-            "kills": 0
-        }
-        res = supabase.table("users").insert(new_user).execute()
-        return res.data[0] if res.data else new_user
-    except Exception as e:
-        print(f"Error auth: {e}")
-        return None
-
-def update_score(ip, points, kill=False):
+def update_score(username, points, kill=False):
+    """Updates score based on Username (from Auth), not IP"""
     if not supabase: return
     try:
-        res = supabase.table("users").select("entropy_score, kills").eq("ip_address", ip).execute()
+        # Check if user exists in public table
+        res = supabase.table("users").select("entropy_score, kills").eq("username", username).execute()
         if not res.data: return
         
         current = res.data[0]
         new_score = current['entropy_score'] + points
         new_kills = current['kills'] + (1 if kill else 0)
         
-        supabase.table("users").update({"entropy_score": new_score, "kills": new_kills}).eq("ip_address", ip).execute()
+        supabase.table("users").update({"entropy_score": new_score, "kills": new_kills}).eq("username", username).execute()
     except Exception as e:
         print(f"Error updating score: {e}")
 
@@ -70,7 +51,6 @@ def get_top_destroyers():
 def get_user_loot(username):
     if not supabase: return []
     try:
-        # Fetch archived images killed by this user
         res = supabase.table("images").select("*").eq("username", username).execute()
         return res.data
     except:

@@ -2,10 +2,18 @@
 
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { Send, CornerDownRight, X } from "lucide-react"
+import { Send, CornerDownRight, X, User as UserIcon } from "lucide-react"
+import Image from "next/image"
 
-// Reuse the interface to keep types consistent
-import { Comment } from "./feed-card"
+// Updated Interface to include avatar_url
+export interface Comment {
+  id: string
+  username: string
+  avatar_url?: string | null // <--- ADDED THIS
+  content: string
+  created_at: string
+  parent_id?: string | null
+}
 
 interface CommentSectionProps {
   postId: string
@@ -43,8 +51,23 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
         {relevantComments.map(comment => (
           <div key={comment.id} className="group animate-in fade-in duration-300">
             <div className="flex items-start gap-3">
-                {/* Avatar */}
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 mt-1 shrink-0" />
+                
+                {/* --- COMMENTER AVATAR --- */}
+                <div className="w-6 h-6 rounded-full mt-1 shrink-0 relative overflow-hidden bg-white/5 border border-white/10">
+                    {comment.avatar_url ? (
+                        <Image 
+                            src={comment.avatar_url} 
+                            alt={comment.username} 
+                            fill 
+                            className="object-cover"
+                            unoptimized={true} // Bypass Vercel Optimization
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                             <UserIcon size={12} className="text-white/50" />
+                        </div>
+                    )}
+                </div>
                 
                 <div className="flex-1">
                     {/* Header: Username + Time */}
