@@ -123,7 +123,7 @@ export default function ProfilePage() {
                             alt="Avatar" 
                             fill
                             className="rounded-full object-cover" 
-                            unoptimized
+                            unoptimized={true}
                             priority
                             referrerPolicy="no-referrer"
                         />

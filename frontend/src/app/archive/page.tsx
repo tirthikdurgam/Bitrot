@@ -168,6 +168,7 @@ export default function ArchivePage() {
                             src={post.image} 
                             alt="Dead File" 
                             fill
+                            unoptimized={true}
                             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 25vw"
                             className="object-cover grayscale contrast-125 brightness-75 group-hover:scale-105 group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 transition-all duration-700"
                         />

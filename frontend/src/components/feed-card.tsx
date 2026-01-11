@@ -144,7 +144,6 @@ export default function FeedCard({
           alt={username} 
           fill 
           sizes="(max-width: 768px) 100vw, 600px"
-          // --- THE FIX: Bypass Vercel Optimization ---
           unoptimized={true} 
           className={`object-cover transition-all duration-700 ${isDead ? 'grayscale contrast-150 brightness-75 sepia-[.3]' : 'group-hover:scale-[1.02]'}`}
           {...(isSecretActive ? secretHandlers : {})}

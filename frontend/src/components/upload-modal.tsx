@@ -163,7 +163,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                         alt="Preview" 
                         fill 
                         className="object-contain" 
-                        unoptimized 
+                        unoptimized={true}
                       />
                   </div>
                   <button
