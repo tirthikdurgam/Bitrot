@@ -5,11 +5,10 @@ import { formatDistanceToNow } from "date-fns"
 import { Send, CornerDownRight, X, User as UserIcon } from "lucide-react"
 import Image from "next/image"
 
-// Updated Interface to include avatar_url
 export interface Comment {
   id: string
   username: string
-  avatar_url?: string | null // <--- ADDED THIS
+  avatar_url?: string | null
   content: string
   created_at: string
   parent_id?: string | null
@@ -60,7 +59,7 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
                             alt={comment.username} 
                             fill 
                             className="object-cover"
-                            unoptimized={true} // Bypass Vercel Optimization
+                            unoptimized={true} 
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -83,10 +82,10 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
                     {/* Content */}
                     <p className="text-sm text-white/90 leading-relaxed mt-0.5 font-normal tracking-wide">{comment.content}</p>
 
-                    {/* Reply Button */}
+                    {/* Reply Button (Now White Hover) */}
                     <button 
                         onClick={() => setReplyingTo({ id: comment.id, username: comment.username })}
-                        className="text-[10px] font-bold text-white/30 hover:text-[#00FF41] mt-1.5 transition-colors uppercase tracking-widest flex items-center gap-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="text-[10px] font-bold text-white/30 hover:text-white mt-1.5 transition-colors uppercase tracking-widest flex items-center gap-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                     >
                         <CornerDownRight size={10} /> Reply
                     </button>
@@ -102,7 +101,6 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
   }
 
   return (
-    // We add 'font-montserrat' class here to enforce the font from layout.tsx
     <div className="flex flex-col gap-4 font-montserrat">
       
       {/* 1. SCROLLABLE COMMENT LIST */}
@@ -118,9 +116,9 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
 
       {/* 2. INPUT AREA */}
       <form onSubmit={handleSubmit} className="relative pt-2 border-t border-white/5">
-         {/* Reply Indicator */}
+         {/* Reply Indicator (Now White Theme) */}
          {replyingTo && (
-             <div className="flex items-center justify-between text-xs text-[#00FF41] mb-2 bg-[#00FF41]/10 px-3 py-1.5 rounded-lg border border-[#00FF41]/20 animate-in slide-in-from-bottom-2">
+             <div className="flex items-center justify-between text-xs text-white mb-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 animate-in slide-in-from-bottom-2 backdrop-blur-md">
                  <span className="flex items-center gap-1.5 font-bold tracking-wide">
                      <CornerDownRight size={12} />
                      Replying to @{replyingTo.username}
@@ -128,25 +126,26 @@ export default function CommentSection({ postId, comments, onPostComment }: Comm
                  <button 
                     type="button" 
                     onClick={() => setReplyingTo(null)} 
-                    className="hover:bg-[#00FF41]/20 p-1 rounded-md transition-colors"
+                    className="hover:bg-white/20 p-1 rounded-md transition-colors"
                  >
                      <X size={12} />
                  </button>
              </div>
          )}
          
-         <div className="relative group focus-within:ring-1 focus-within:ring-[#00FF41]/50 rounded-full transition-all">
+         {/* Input Box (White Focus Ring & Button) */}
+         <div className="relative group focus-within:ring-1 focus-within:ring-white/50 rounded-full transition-all">
             <input 
                 type="text" 
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder={replyingTo ? "Transmit reply..." : ""}
+                placeholder={replyingTo ? "Transmit reply..." : "Add a comment..."}
                 className="w-full bg-white/5 hover:bg-white/10 focus:bg-black/40 text-white placeholder-white/30 text-sm px-5 py-3 rounded-full border border-white/10 outline-none transition-all pr-12 backdrop-blur-md font-medium tracking-wide"
             />
             <button 
                 type="submit"
                 disabled={!newComment.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-[#00FF41] text-black rounded-full hover:scale-105 active:scale-95 disabled:opacity-0 disabled:scale-50 transition-all duration-200 shadow-[0_0_10px_rgba(0,255,65,0.4)]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white text-black rounded-full hover:scale-105 active:scale-95 disabled:opacity-0 disabled:scale-50 transition-all duration-200 shadow-[0_0_15px_rgba(255,255,255,0.4)]"
             >
                 <Send size={14} className="ml-0.5" />
             </button>

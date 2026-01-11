@@ -40,15 +40,15 @@ def safe_db_execute(query):
             return query.execute()
         except (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectTimeout):
             if attempt < max_retries - 1:
-                print(f"DB Connection unstable. Retrying ({attempt+1}/{max_retries})...")
+                print(f"⚠️ DB Connection unstable. Retrying ({attempt+1}/{max_retries})...")
                 time.sleep(0.2)
             else:
-                print("DB Connection failed after retries.")
+                print("❌ DB Connection failed after retries.")
                 raise 
         except Exception as e:
             raise e
 
-# --- LIFECYCLE: THE REAPER ---
+# --- LIFECYCLE ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("SYSTEM: Initializing Reaper Protocol...")
@@ -65,9 +65,9 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
-# --- APP INITIALIZATION ---
 app = FastAPI(lifespan=lifespan)
 
+# --- CORS ---
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -92,26 +92,21 @@ class InteractRequest(BaseModel):
     post_id: str
     action: str 
 
-# --- HELPER: BACKGROUND DECAY TASK ---
+# --- HELPER: DECAY ---
 def process_remote_decay(storage_path: str, current_health: float):
-    if not storage_path or not db.supabase:
-        return
+    if not storage_path or not db.supabase: return
     try:
         bucket_name = "bitloss-images"
         file_data = db.supabase.storage.from_(bucket_name).download(storage_path)
-        
         integrity_ratio = max(0.01, current_health / 100.0)
         rotted_data = bitrot.decay_bytes(file_data, integrity=integrity_ratio)
-        
         db.supabase.storage.from_(bucket_name).upload(
-            storage_path,
-            rotted_data,
-            file_options={"x-upsert": "true", "content-type": "image/jpeg"}
+            storage_path, rotted_data, file_options={"x-upsert": "true", "content-type": "image/jpeg"}
         )
     except Exception as e:
         print(f"SKIPPING DECAY for {storage_path}: {e}")
 
-# --- HELPER: STRICT USER AUTH ---
+# --- HELPER: AUTH ---
 def get_current_user(request: Request):
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -122,11 +117,11 @@ def get_current_user(request: Request):
         if not user_response or not user_response.user:
             return None
         user_id = user_response.user.id
+        # Fetch public profile to get username
         profile_res = db.supabase.table("users").select("*").eq("id", user_id).execute()
-        if profile_res.data and len(profile_res.data) > 0:
+        if profile_res.data:
             return profile_res.data[0]
-        else:
-            return None
+        return None
     except Exception as e:
         print(f"AUTH ERROR: {str(e)}")
         return None
@@ -169,7 +164,6 @@ async def upload_image(
         active_path = f"active/{filename}"      
         original_path = f"originals/{filename}" 
 
-        # Upload
         db.supabase.storage.from_("bitloss-images").upload(
             active_path,
             file_bytes,
@@ -267,6 +261,12 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             new_integrity = old_integrity
             is_destroyed_now = row.get('is_destroyed', False)
             
+            # --- GENERATION LOGIC ---
+            # We increment generation every time the feed processes this image, 
+            # representing a "time step" or "view cycle".
+            current_gens = row.get('generations', 0) or 0
+            new_gens = current_gens + 1 
+
             if not is_destroyed_now:
                 new_integrity = max(0.0, old_integrity - decay_amount)
                 
@@ -294,6 +294,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "current_quality": new_integrity, 
                     "last_viewed": datetime.utcnow().isoformat(),
                     "witnesses": (row.get('witnesses', 0) or 0) + 1,
+                    "generations": new_gens, 
                     "is_destroyed": is_destroyed_now,
                     "is_archived": is_destroyed_now
                 })
@@ -304,6 +305,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "current_quality": new_integrity,
                     "last_viewed": row['last_viewed'],
                     "witnesses": row['witnesses'],
+                    "generations": new_gens, 
                     "is_destroyed": row['is_destroyed'],
                     "is_archived": row['is_archived']
                 })
@@ -311,17 +313,14 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                 if new_integrity < 100 and row.get("storage_path"):
                      background_tasks.add_task(process_remote_decay, row["storage_path"], new_integrity)
 
-            # --- FETCH COMMENTS (Updated for 'username' column) ---
+            # Comments
             c_res = safe_db_execute(
                 db.supabase.table('comments').select('*').eq('post_id', row['id']).order('created_at')
             )
             final_comments = []
             for c in c_res.data:
-                # 1. Get username directly from comment row
                 comment_username = c.get('username', 'Anonymous')
                 comment_avatar = None
-                
-                # 2. Try to fetch avatar using that username
                 try:
                     u_res = db.supabase.table('users').select('avatar_url').eq('username', comment_username).maybe_single().execute()
                     if u_res.data:
@@ -351,7 +350,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                 "avatar_url": p_author_av,
                 "image": img_url,
                 "bitIntegrity": row.get('bit_integrity', 100.0),
-                "generations": row.get('generations', 0),
+                "generations": new_gens, 
                 "witnesses": row.get('witnesses', 0),
                 "caption": row.get("caption", ""),
                 "has_secret": has_secret,
@@ -405,6 +404,10 @@ def interact_with_post(request: Request, body: InteractRequest):
         
         post = post_res.data[0]
         current_integrity = post.get("bit_integrity", 100.0)
+        
+        # --- FETCH & INCREMENT GENERATION ---
+        current_gens = post.get("generations", 0) or 0
+        new_gens = current_gens + 1
 
         if body.action == "heal":
             new_integrity = min(100.0, current_integrity + 5.0)
@@ -416,6 +419,7 @@ def interact_with_post(request: Request, body: InteractRequest):
         safe_db_execute(db.supabase.table("images").update({
             "bit_integrity": new_integrity,
             "current_quality": new_integrity,
+            "generations": new_gens, 
             "last_viewed": datetime.utcnow().isoformat()
         }).eq("id", body.post_id))
 
@@ -446,12 +450,11 @@ def post_comment(request: Request, body: dict):
         parent_id = body.get('parent_id')
         
         # --- FIXED PAYLOAD ---
-        # Using 'username' and 'integrity_snapshot' to match DB columns
         comment_payload = {
             "post_id": body['post_id'],
-            "username": user['username'], # Using text username instead of user_id
+            "username": user['username'], 
             "content": body['content'],
-            "integrity_snapshot": current_integrity, # Using 'integrity_snapshot'
+            "integrity_snapshot": current_integrity, 
             "parent_id": parent_id
         }
         
@@ -462,8 +465,7 @@ def post_comment(request: Request, body: dict):
         print(f"Comment Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to save comment")
 
-# ... (Graveyard, Archive, Trending, Reveal routes remain exactly the same as previous) ...
-# I will include them briefly for completeness:
+# ... (Graveyard, Archive, Trending, Reveal routes) ...
 
 @app.get("/graveyard")
 def get_graveyard():

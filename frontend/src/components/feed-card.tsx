@@ -48,7 +48,6 @@ export default function FeedCard({
   const supabase = createClient()
   
   // --- HARDENED API CONFIG ---
-  // Removes trailing slashes to prevent "//interact" errors
   const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
   const API_URL = RAW_API_URL.replace(/\/$/, "")
 
@@ -184,6 +183,14 @@ export default function FeedCard({
         const data = await res.json()
         setLocalIntegrity(data.new_integrity)
         setCurrentCredits(data.remaining_credits)
+
+        // Animate credits in navbar (if it exists)
+        const creditEl = document.getElementById("user-credits")
+        if (creditEl) {
+           // CHANGED: text-green-500 to text-white for monochrome look
+           creditEl.classList.add("text-white", "scale-110")
+           setTimeout(() => creditEl.classList.remove("text-white", "scale-110"), 500)
+        }
 
     } catch (error: any) {
         console.error("Interaction Error:", error)

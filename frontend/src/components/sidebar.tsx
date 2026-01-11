@@ -6,7 +6,10 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Trash2, Activity, AlertTriangle, Hash, Zap, ChevronRight } from "lucide-react"
 
-// UTILITY: Hides scrollbar but allows scrolling
+// --- CONSTANTS (Defined outside to be stable) ---
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+const API_URL = RAW_API_URL.replace(/\/$/, "")
+
 const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
 
 export default function Sidebar() {
@@ -16,23 +19,17 @@ export default function Sidebar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-
-        // 1. Get Dead Posts
-        const graveRes = await fetch("/api/graveyard")
+        // 1. Get Dead Posts from Python Backend
+        const graveRes = await fetch(`${API_URL}/graveyard`)
         if (graveRes.ok) {
             const graveData = await graveRes.json()
             if (Array.isArray(graveData)) {
-                const formattedGraveyard = graveData.map((item: any) => ({
-                    ...item,
-                    fullUrl: `${supabaseUrl}/storage/v1/object/public/bitloss-images/${item.storage_path}`
-                }))
-                setGraveyard(formattedGraveyard)
+                setGraveyard(graveData)
             }
         }
 
-        // 2. Get Trending Posts
-        const trendRes = await fetch("/api/trending")
+        // 2. Get Trending Posts from Python Backend
+        const trendRes = await fetch(`${API_URL}/trending`)
         if (trendRes.ok) {
             const trendData = await trendRes.json()
             if (Array.isArray(trendData)) {
@@ -47,7 +44,7 @@ export default function Sidebar() {
     fetchData()
     const interval = setInterval(fetchData, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, []) // <--- Empty dependency array is now safe because API_URL is a global constant
 
   const formatIntegrity = (value: any) => {
     if (value === null || value === undefined || isNaN(value)) {
@@ -78,7 +75,6 @@ export default function Sidebar() {
                     <span className="text-[10px] font-bold tracking-widest">SYSTEM CLEAN</span>
                 </div>
             ) : (
-                // UPDATED: Removed scroll classes and added .slice(0, 2) to limit to 2 items
                 <div className="grid grid-cols-2 gap-2 mb-4">
                     {graveyard.slice(0, 2).map((item, index) => (
                         <motion.div
@@ -89,7 +85,7 @@ export default function Sidebar() {
                             className="relative aspect-square bg-black border border-white/10 overflow-hidden group/item cursor-not-allowed"
                         >
                              <Image 
-                                src={item.fullUrl} 
+                                src={item.image} 
                                 alt={item.username || "Dead file"} 
                                 fill 
                                 sizes="150px"
@@ -122,7 +118,7 @@ export default function Sidebar() {
 
       {/* --- SECTION 2: DECAYING TRENDS (System Monitor) --- */}
       <div className="border border-white/10 bg-[#050505] relative">
-         
+          
          {/* Header */}
          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div className="flex items-center gap-2 text-[#0066FF]">
@@ -138,10 +134,10 @@ export default function Sidebar() {
             {(!trends || trends.length === 0) ? (
                 <div className="text-[10px] text-white/30 font-medium italic p-2">System stable. No active decay.</div>
             ) : (
-                // Keeping the slice(0, 3) for trends as requested previously
                 trends.slice(0, 3).map((trend, index) => {
                     const integrity = formatIntegrity(trend.current_quality || trend.bitIntegrity);
                     const isCritical = integrity < 40;
+                    const genCount = trend.generations || 0;
 
                     return (
                         <motion.div
@@ -167,13 +163,13 @@ export default function Sidebar() {
                             <div className="w-full h-1 bg-white/5 flex gap-[1px]">
                                 <div 
                                     className={`h-full ${isCritical ? 'bg-red-500 shadow-[0_0_8px_red]' : 'bg-[#0066FF] shadow-[0_0_8px_#0066FF]'}`} 
-                                    style={{ width: `${Math.min(trend.generations * 2, 100)}%` }}
+                                    style={{ width: `${Math.min(genCount * 2, 100)}%` }}
                                 />
                             </div>
                             
                             <div className="flex justify-between mt-1 text-[8px] font-medium text-white/30 tracking-wider">
-                                <span>GEN: {trend.generations}</span>
-                                <span>RATE: {trend.decay_rate}</span>
+                                <span>GEN: {genCount}</span>
+                                <span>RATE: {trend.decay_rate || "0%/view"}</span>
                             </div>
                         </motion.div>
                     )
