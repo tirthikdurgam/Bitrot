@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Upload, Loader2, CloudUpload, Type, Lock } from "lucide-react"
 import Image from "next/image"
-import { useRouter } from "next/navigation" // 1. Import Router
+import { useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 
 const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
@@ -16,7 +16,7 @@ interface UploadModalProps {
 }
 
 export default function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
-  const router = useRouter() // 2. Initialize Router
+  const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [caption, setCaption] = useState("")
@@ -25,14 +25,12 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 3. AUTH GUARD: Check login status immediately when modal opens
+  // AUTH GUARD
   useEffect(() => {
     if (isOpen) {
         const checkAuth = async () => {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
-            
-            // If no user, kick them out to login page
             if (!user) {
                 onClose()
                 router.push("/login")
@@ -68,29 +66,43 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
-    // 4. Double Check Auth on Submit
     if (!user) {
         router.push("/login")
         return
     }
     
+    // --- FIX 1: FETCH REAL USERNAME FROM DB ---
     let username = "Anonymous_Creator"
-    if (user) {
+    
+    // Query the 'users' table for the custom username
+    const { data: profile } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+
+    if (profile?.username) {
+        username = profile.username
+    } else {
+        // Fallback only if DB fails
         username = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
         username = username.replace(/\s+/g, '_')
     }
 
     const formData = new FormData()
     formData.append("file", file)
-    formData.append("author", username)
+    formData.append("author", username) // Sends the correct custom username
     formData.append("caption", caption)
+    
+    // --- FIX 2: SEND USER ID ---
+    // This ensures the backend can link the image to the specific user UUID
+    formData.append("user_id", user.id)
     
     if (secret.trim()) {
         formData.append("secret", secret)
     }
 
     try {
-      // Ensure this points to your Render backend
       const res = await fetch("https://bitrot.onrender.com/upload", {
         method: "POST",
         body: formData,
@@ -119,7 +131,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       {isOpen && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-8 font-inter">
           
-          {/* BACKDROP */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -128,7 +139,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             className="absolute inset-0 bg-black/60 backdrop-blur-md cursor-pointer"
           />
 
-          {/* MODAL CONTAINER */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -145,10 +155,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
               <X size={20} />
             </button>
 
-            {/* --- LEFT PANEL: UPLOAD ZONE --- */}
+            {/* LEFT PANEL */}
             <div className={`w-full md:w-5/12 border-b md:border-b-0 md:border-r border-white/10 relative flex flex-col ${scrollbarHiddenClass} bg-white/[0.02]`}>
               {preview ? (
-                // PREVIEW MODE
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative w-full h-full flex flex-col items-center justify-center p-8">
                   <div className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-black/40">
                       <Image 
@@ -168,7 +177,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   </button>
                 </motion.div>
               ) : (
-                // UPLOAD WIDGET
                 <motion.div 
                     initial={{ opacity: 0 }} 
                     animate={{ opacity: 1 }} 
@@ -212,7 +220,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </div>
 
-            {/* --- RIGHT PANEL: FORM --- */}
+            {/* RIGHT PANEL */}
             <div className="w-full md:w-7/12 p-8 md:p-12 flex flex-col justify-center relative">
                <div className="mb-10 relative z-10">
                    <h2 className="text-4xl font-black text-white mb-2 tracking-tighter drop-shadow-lg">Create Artifact.</h2>
@@ -220,8 +228,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                </div>
 
               <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
-                
-                {/* Caption Input */}
                 <div className="space-y-2 group">
                   <label className="flex items-center gap-2 text-xs font-bold text-white/40 uppercase tracking-widest pl-1 transition-colors group-focus-within:text-white">
                       <Type size={12} /> Signal Metadata
@@ -235,7 +241,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   />
                 </div>
 
-                {/* Secret Input */}
                 <div className="space-y-2 group">
                   <label className="flex items-center gap-2 text-xs font-bold text-white/40 uppercase tracking-widest pl-1 group-focus-within:text-white transition-colors">
                       <Lock size={12} /> Secret Payload (Optional)
@@ -253,7 +258,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                   </div>
                 </div>
 
-                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={!file || isUploading}

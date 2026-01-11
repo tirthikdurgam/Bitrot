@@ -10,11 +10,13 @@ export async function middleware(request: NextRequest) {
   })
 
   // 2. SECURITY HEADERS (CSP)
+  // ADDED: https://grainy-gradients.vercel.app to img-src
+  // ADDED: https://bitloss.vercel.app to img-src (Good practice for production)
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com;
     style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://*.googleusercontent.com https://avatars.githubusercontent.com https://*.supabase.co https://bitrot.onrender.com;
+    img-src 'self' blob: data: https://*.googleusercontent.com https://avatars.githubusercontent.com https://*.supabase.co https://bitrot.onrender.com https://grainy-gradients.vercel.app https://bitloss.vercel.app;
     font-src 'self';
     object-src 'none';
     base-uri 'self';
@@ -61,32 +63,28 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // 5. USERNAME ENFORCEMENT LOGIC
-  // Only run this check if the user is actually logged in
   if (user) {
     const path = request.nextUrl.pathname
     
-    // Define routes where we DO NOT check for username 
-    // (to prevent infinite loops or blocking auth)
     const isExcludedRoute = 
       path.startsWith('/onboarding') || 
       path.startsWith('/auth') || 
       path.startsWith('/login')
 
-    // CHECK 1: If user is inside the app (not on excluded route), check if they have a username
+    // CHECK 1: If user is inside the app, check if they have a username
     if (!isExcludedRoute) {
       const { data: dbUser } = await supabase
-        .from('users') // Checking the 'users' table
+        .from('users') 
         .select('username')
         .eq('id', user.id)
         .single()
 
-      // If username is missing/null, force them to onboarding
       if (!dbUser?.username) {
         return NextResponse.redirect(new URL('/onboarding', request.url))
       }
     }
 
-    // CHECK 2: If user IS on onboarding, but ALREADY has a username, kick them out to home
+    // CHECK 2: If user IS on onboarding but ALREADY has a username, kick them out to home
     if (path.startsWith('/onboarding')) {
       const { data: dbUser } = await supabase
         .from('users')

@@ -23,21 +23,34 @@ export default function StartupGateway({ children }: { children: React.ReactNode
         console.log("SYSTEM: Valid session detected. Bypassing boot sequence.")
         setShowGate(false)
         setIsBackendReady(true) 
+        // We return early here so we don't accidentally close the gate later if logic gets complex,
+        // but we still want to ping the server below to wake it up.
       } 
       
-      // --- WAKE UP BACKEND (Always do this, even if skipping visuals) ---
+      // --- WAKE UP BACKEND ---
       try {
         console.log("SYSTEM: Pinging Render Backend...")
-        const res = await fetch("https://bitrot.onrender.com/me", { 
+        
+        // Using Promise.race to force a timeout if the server hangs too long
+        // If the server takes > 10 seconds, we just let the user in.
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Request Timeout")), 8000)
+        );
+
+        const fetchPromise = fetch("https://bitrot.onrender.com/me", { 
             method: "GET",
             headers: { "Cache-Control": "no-cache" }
-        })
-        if (res.ok) {
-            console.log("SYSTEM: Connection Established.")
-            setIsBackendReady(true)
-        }
+        });
+
+        await Promise.race([fetchPromise, timeoutPromise]);
+
+        console.log("SYSTEM: Backend Handshake Complete.");
+
       } catch (error) {
-        console.warn("SYSTEM: Backend Handshake Failed (Offline Mode?)", error)
+        console.warn("SYSTEM: Backend Handshake Failed (Offline Mode Active)", error)
+      } finally {
+        // --- THE FIX: ALWAYS SET THIS TO TRUE ---
+        // Whether it succeeded, failed, 404'd, or timed out... we let the user in.
         setIsBackendReady(true) 
       }
     }
@@ -47,7 +60,6 @@ export default function StartupGateway({ children }: { children: React.ReactNode
 
   // 2. CHECK IF WE CAN OPEN THE GATE
   useEffect(() => {
-    // Only run this logic if the gate is currently closed
     if (showGate) {
         if (isBackendReady && isVisualsComplete) {
             setShowGate(false)
@@ -63,10 +75,6 @@ export default function StartupGateway({ children }: { children: React.ReactNode
         )}
       </AnimatePresence>
       
-      {/* If showGate is false, we show children immediately.
-          This prevents the "Flicker" on reload because React 
-          will paint the children as soon as the useEffect above sets showGate(false).
-      */}
       {!showGate && children}
     </>
   )
