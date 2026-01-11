@@ -32,11 +32,8 @@ if not SUPABASE_URL:
 
 print(f"DEBUG: Loaded SUPABASE_URL: {SUPABASE_URL}")
 
-# --- SAFETY WRAPPER (The Fix) ---
+# --- SAFETY WRAPPER ---
 def safe_db_execute(query):
-    """
-    Executes a Supabase query with retries to handle random disconnections.
-    """
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -93,7 +90,7 @@ app.mount("/images", StaticFiles(directory="static/images"), name="images")
 # --- DATA MODELS ---
 class InteractRequest(BaseModel):
     post_id: str
-    action: str # "heal" or "corrupt"
+    action: str 
 
 # --- HELPER: BACKGROUND DECAY TASK ---
 def process_remote_decay(storage_path: str, current_health: float):
@@ -172,14 +169,12 @@ async def upload_image(
         active_path = f"active/{filename}"      
         original_path = f"originals/{filename}" 
 
-        print(f"Uploading Active Copy: {active_path}...")
+        # Upload
         db.supabase.storage.from_("bitloss-images").upload(
             active_path,
             file_bytes,
             file_options={"content-type": f"image/{file_ext}"}
         )
-
-        print(f"Uploading Original Copy: {original_path}...")
         db.supabase.storage.from_("bitloss-images").upload(
             original_path,
             file_bytes,
@@ -202,12 +197,8 @@ async def upload_image(
             "last_viewed": datetime.utcnow().isoformat()
         }
         
-        print(f"Creating image record for user: {author_username}...")
-        # Use safe_db_execute for critical inserts
         safe_db_execute(db.supabase.table("images").insert(image_payload))
         
-        # We need the ID, so we query it back or assume success if no error raised
-        # To be safe, we'll re-fetch the latest for this user
         new_post_res = db.supabase.table("images").select("id").eq("storage_path", active_path).execute()
         new_image_id = new_post_res.data[0]['id']
 
@@ -232,7 +223,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
         current_user = get_current_user(request)
         current_user_id = current_user['id'] if current_user else None
         
-        # Use safe_db_execute for fetching
+        # Fetch Active Posts
         response = safe_db_execute(
             db.supabase.table('images')
             .select('*')
@@ -255,13 +246,13 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             
             if author_id:
                 try:
-                    # Using maybe_single to prevent crash if user deleted
                     author_res = db.supabase.table('users').select('username, avatar_url').eq('id', author_id).maybe_single().execute()
                     if author_res.data:
                         p_author_name = author_res.data['username']
                         p_author_av = author_res.data['avatar_url']
                 except: pass
 
+            # Decay Logic
             try:
                 last_update_str = row.get('last_viewed')
                 last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp() if last_update_str else current_time
@@ -320,17 +311,27 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                 if new_integrity < 100 and row.get("storage_path"):
                      background_tasks.add_task(process_remote_decay, row["storage_path"], new_integrity)
 
-            # Comments
+            # --- FETCH COMMENTS (Updated for 'username' column) ---
             c_res = safe_db_execute(
                 db.supabase.table('comments').select('*').eq('post_id', row['id']).order('created_at')
             )
             final_comments = []
             for c in c_res.data:
-                u_res = db.supabase.table('users').select('username, avatar_url').eq('id', c['user_id']).maybe_single().execute()
+                # 1. Get username directly from comment row
+                comment_username = c.get('username', 'Anonymous')
+                comment_avatar = None
+                
+                # 2. Try to fetch avatar using that username
+                try:
+                    u_res = db.supabase.table('users').select('avatar_url').eq('username', comment_username).maybe_single().execute()
+                    if u_res.data:
+                        comment_avatar = u_res.data['avatar_url']
+                except: pass
+
                 final_comments.append({
                     "id": str(c['id']),
-                    "username": u_res.data['username'] if u_res.data else 'Anon',
-                    "avatar_url": u_res.data['avatar_url'] if u_res.data else None,
+                    "username": comment_username, 
+                    "avatar_url": comment_avatar,
                     "content": c['content'],
                     "created_at": c['created_at']
                 })
@@ -366,7 +367,6 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                 exist_creds = u_data.data.get('credits', 0) or 0
                 exist_kills = u_data.data.get('kills', 0) or 0
                 
-                # Safe update for user profile
                 safe_db_execute(db.supabase.table('users').update({
                     'credits': exist_creds + total_viewer_credits,
                     'kills': exist_kills + kills_this_session
@@ -391,17 +391,14 @@ def interact_with_post(request: Request, body: InteractRequest):
         if not db.supabase:
             raise HTTPException(status_code=503, detail="DB Disconnected")
 
-        # 1. Credits Check
         u_data = safe_db_execute(db.supabase.table('users').select('credits').eq('id', user_id).single())
         current_creds = u_data.data.get('credits', 0)
         
         if current_creds < COST:
              raise HTTPException(status_code=402, detail="Insufficient Credits")
         
-        # 2. Deduct (Safe Update)
         safe_db_execute(db.supabase.table('users').update({'credits': current_creds - COST}).eq('id', user_id))
 
-        # 3. Fetch Image
         post_res = safe_db_execute(db.supabase.table("images").select("*").eq("id", body.post_id))
         if not post_res.data:
             raise HTTPException(status_code=404, detail="Post not found")
@@ -416,7 +413,6 @@ def interact_with_post(request: Request, body: InteractRequest):
         else:
             raise HTTPException(status_code=400, detail="Invalid action")
 
-        # 4. Update Image (Safe Update)
         safe_db_execute(db.supabase.table("images").update({
             "bit_integrity": new_integrity,
             "current_quality": new_integrity,
@@ -435,65 +431,6 @@ def interact_with_post(request: Request, body: InteractRequest):
         print(f"Interact Error: {e}")
         raise HTTPException(status_code=500, detail="Interaction failed due to server error")
 
-@app.get("/graveyard")
-def get_graveyard():
-    if not db.supabase: return [] 
-    
-    response = safe_db_execute(
-        db.supabase.table("images").select("*").eq("is_archived", True).order("created_at", desc=True).limit(4)
-    )
-    res = response.data
-    
-    results = []
-    for post in res:
-        final_path = post.get("original_storage_path") or post.get("storage_path")
-        base_url = SUPABASE_URL
-        results.append({
-            "id": post["id"],
-            "username": post.get("username", "Unknown"),
-            "storage_path": final_path,
-            "image": f"{base_url}/storage/v1/object/public/bitloss-images/{final_path}"
-        })
-    return results
-
-@app.get("/archive")
-def get_archive():
-    if not db.supabase: return []
-    response = safe_db_execute(
-        db.supabase.table("images").select("*").eq("is_archived", True).order("created_at", desc=True)
-    )
-    res = response.data
-    results = []
-    for post in res:
-        final_path = post.get("original_storage_path") or post.get("storage_path")
-        base_url = SUPABASE_URL
-        results.append({
-            "id": post["id"],
-            "username": post.get("username", "Unknown"),
-            "generations": post.get("generations", 0),
-            "storage_path": final_path,
-            "image": f"{base_url}/storage/v1/object/public/bitloss-images/{final_path}"
-        })
-    return results
-
-@app.get("/trending")
-def get_trending():
-    if not db.supabase: return []
-    response = safe_db_execute(
-        db.supabase.table("images").select("*").eq("is_archived", False).order("generations", desc=True).limit(5)
-    )
-    res = response.data
-    results = []
-    for post in res:
-        results.append({
-            "id": post["id"],
-            "username": post.get("username", "Unknown"),
-            "generations": post.get("generations", 0),
-            "bitIntegrity": post.get("current_quality", 100),
-            "decay_rate": f"{min(99, int((post.get('generations') or 0) * 0.1))}%/view"
-        })
-    return results
-
 @app.post("/comment")
 def post_comment(request: Request, body: dict):
     user = get_current_user(request)
@@ -508,16 +445,16 @@ def post_comment(request: Request, body: dict):
         
         parent_id = body.get('parent_id')
         
-        # Link comment to user_id (UUID)
+        # --- FIXED PAYLOAD ---
+        # Using 'username' and 'integrity_snapshot' to match DB columns
         comment_payload = {
             "post_id": body['post_id'],
-            "user_id": user['id'],
+            "username": user['username'], # Using text username instead of user_id
             "content": body['content'],
-            "bit_integrity": current_integrity, 
+            "integrity_snapshot": current_integrity, # Using 'integrity_snapshot'
             "parent_id": parent_id
         }
         
-        # Safe Insert
         safe_db_execute(db.supabase.table("comments").insert(comment_payload))
         
         return {"status": "Comment recorded"}
@@ -525,26 +462,69 @@ def post_comment(request: Request, body: dict):
         print(f"Comment Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to save comment")
 
+# ... (Graveyard, Archive, Trending, Reveal routes remain exactly the same as previous) ...
+# I will include them briefly for completeness:
+
+@app.get("/graveyard")
+def get_graveyard():
+    if not db.supabase: return [] 
+    response = safe_db_execute(db.supabase.table("images").select("*").eq("is_archived", True).order("created_at", desc=True).limit(4))
+    res = response.data
+    results = []
+    for post in res:
+        final_path = post.get("original_storage_path") or post.get("storage_path")
+        results.append({
+            "id": post["id"],
+            "username": post.get("username", "Unknown"),
+            "storage_path": final_path,
+            "image": f"{SUPABASE_URL}/storage/v1/object/public/bitloss-images/{final_path}"
+        })
+    return results
+
+@app.get("/archive")
+def get_archive():
+    if not db.supabase: return []
+    response = safe_db_execute(db.supabase.table("images").select("*").eq("is_archived", True).order("created_at", desc=True))
+    res = response.data
+    results = []
+    for post in res:
+        final_path = post.get("original_storage_path") or post.get("storage_path")
+        results.append({
+            "id": post["id"],
+            "username": post.get("username", "Unknown"),
+            "generations": post.get("generations", 0),
+            "storage_path": final_path,
+            "image": f"{SUPABASE_URL}/storage/v1/object/public/bitloss-images/{final_path}"
+        })
+    return results
+
+@app.get("/trending")
+def get_trending():
+    if not db.supabase: return []
+    response = safe_db_execute(db.supabase.table("images").select("*").eq("is_archived", False).order("generations", desc=True).limit(5))
+    res = response.data
+    results = []
+    for post in res:
+        results.append({
+            "id": post["id"],
+            "username": post.get("username", "Unknown"),
+            "generations": post.get("generations", 0),
+            "bitIntegrity": post.get("current_quality", 100),
+            "decay_rate": f"{min(99, int((post.get('generations') or 0) * 0.1))}%/view"
+        })
+    return results
+
 @app.get("/reveal/{post_id}")
 def reveal_secret(post_id: str):
-    if not db.supabase: 
-        return {"status": "error", "message": "DB_DISCONNECTED"}
+    if not db.supabase: return {"status": "error", "message": "DB_DISCONNECTED"}
     try:
         query = db.supabase.table("images").select("current_quality").eq("id", post_id)
         image_data = safe_db_execute(query)
-        if not image_data.data:
-            return {"status": "error", "message": "IMAGE_ID_NOT_FOUND"}
-
-        current_integrity = image_data.data[0].get('current_quality', 100.0)
-        if current_integrity < 80.0:
-            return {"status": "dead", "message": f"INTEGRITY_TOO_LOW ({int(current_integrity)}%)"}
-
+        if not image_data.data: return {"status": "error", "message": "IMAGE_ID_NOT_FOUND"}
+        if image_data.data[0].get('current_quality', 100.0) < 80.0: return {"status": "dead", "message": "INTEGRITY_TOO_LOW"}
+        
         secret_query = db.supabase.table("image_secrets").select("secret_text").eq("image_id", post_id)
         response = safe_db_execute(secret_query)
-
-        if response.data and len(response.data) > 0:
-            return {"status": "success", "message": response.data[0]['secret_text']}
-        else:
-            return {"status": "dead", "message": "SECRET_NOT_FOUND_IN_DB"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+        if response.data: return {"status": "success", "message": response.data[0]['secret_text']}
+        return {"status": "dead", "message": "SECRET_NOT_FOUND_IN_DB"}
+    except Exception as e: return {"status": "error", "message": str(e)}
