@@ -119,14 +119,8 @@ def process_remote_decay(storage_path: str, current_health: float):
     except Exception as e:
         print(f"SKIPPING DECAY for {storage_path}: {e}")
 
-# --- HELPER: STRICT USER AUTH (UPDATED) ---
+# --- HELPER: STRICT USER AUTH ---
 def get_current_user(request: Request):
-    """
-    STRICT AUTHENTICATION:
-    This function now REJECTS any request without a valid Bearer Token.
-    No more anonymous users.
-    """
-    
     auth_header = request.headers.get('Authorization')
     
     # 1. Check if Header Exists
@@ -151,8 +145,6 @@ def get_current_user(request: Request):
         if profile_res.data and len(profile_res.data) > 0:
             return profile_res.data[0]
         else:
-            # Edge Case: User exists in Auth but not in Public table (rare sync issue)
-            # We can auto-fix this or just raise error. Let's raise error for safety.
             print(f"AUTH ERROR: User {user_id} has no public profile.")
             raise HTTPException(status_code=404, detail="User profile not found")
                 
@@ -164,12 +156,11 @@ def get_current_user(request: Request):
 
 @app.get("/me")
 def get_my_identity(request: Request):
-    # This will now throw 401 if not logged in
     return get_current_user(request)
 
 @app.post("/upload")
 async def upload_image(
-    request: Request, # <--- Added Request to access Headers
+    request: Request,
     file: UploadFile = File(...), 
     caption: str = Form(None),
     secret: str = Form(None)
@@ -179,7 +170,7 @@ async def upload_image(
 
     # 1. Enforce Auth
     user = get_current_user(request)
-    author_username = user['username'] # Use the REAL username from DB
+    author_username = user['username']
 
     try:
         file_bytes = await file.read()
@@ -208,7 +199,7 @@ async def upload_image(
         )
 
         image_payload = {
-            "username": author_username, # <--- Uses trusted DB username
+            "username": author_username,
             "storage_path": active_path, 
             "bit_integrity": 100.0,
             "current_quality": 100.0,
@@ -248,11 +239,9 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
     results = []
 
     for post in posts:
-        # We don't enforce login strictly for VIEWING the feed, just interactions
-        # So we pass "Anonymous" as killer_name if headers are missing
+        # Determine viewer for decay calculation (passive viewing)
         viewer_name = "Anonymous"
         try:
-            # Try to get real name, but don't crash if unauth (passive viewing)
             auth_header = request.headers.get('Authorization')
             if auth_header:
                 user = get_current_user(request)
@@ -289,6 +278,7 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
 
         processed_comments = []
         try:
+            # 1. Fetch raw comments
             comment_query = db.supabase.table("comments")\
                 .select("*")\
                 .eq("post_id", post['id'])\
@@ -297,14 +287,24 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             response = safe_db_execute(comment_query)
             raw_data = response.data if response.data else []
             
+            # 2. Extract unique usernames from comments
+            comment_usernames = list(set(c.get('username') for c in raw_data if c.get('username')))
+            
+            # 3. Fetch avatars for these users efficiently (Batch Query)
+            avatar_map = {}
+            if comment_usernames:
+                user_res = db.supabase.table("users").select("username, avatar_url").in_("username", comment_usernames).execute()
+                if user_res.data:
+                    for u in user_res.data:
+                        avatar_map[u['username']] = u.get('avatar_url')
+
+            # 4. Build response with avatars attached
             for c in raw_data:
-                # --- UPDATE: Fetch commenter avatar if possible ---
-                # We can do a join in Supabase or a separate fetch. 
-                # Ideally, your comments table should JOIN with users to get avatar_url in one go.
-                # For now, we trust the client logic or leave it basic.
+                uname = c.get('username', 'Anonymous')
                 processed_comments.append({
                     "id": str(c.get('id')),
-                    "username": c.get('username', 'Anonymous'),
+                    "username": uname,
+                    "avatar_url": avatar_map.get(uname), # <--- AVATAR URL NOW INCLUDED
                     "content": c.get('content', '[REDACTED]'),
                     "created_at": c.get('created_at'),
                     "parent_id": str(c.get('parent_id')) if c.get('parent_id') else None
