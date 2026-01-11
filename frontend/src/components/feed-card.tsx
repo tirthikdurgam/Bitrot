@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send, Unlock, Fingerprint } from "lucide-react"
+import { MessageCircle, Lock, ShieldAlert, Wrench, Hammer, Send, Unlock, Fingerprint, User as UserIcon } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useSecretGate } from "@/hooks/useSecretGate"
 import CommentSection from "./comment-section"
@@ -44,27 +44,57 @@ export default function FeedCard({
 }: FeedCardProps) {
   
   const router = useRouter()
+  const supabase = createClient()
+  
+  // State
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
   const [showComments, setShowComments] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [isHealing, setIsHealing] = useState(false)
   const [isCorrupting, setIsCorrupting] = useState(false)
   
-  // --- MOBILE DECRYPT STATE ---
+  // Avatars State
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
+  const [authorAvatar, setAuthorAvatar] = useState<string | null>(null)
+
+  // Mobile Decrypt State
   const [isPressing, setIsPressing] = useState(false)
   const pressTimer = useRef<NodeJS.Timeout | null>(null)
   
   const isDead = bitIntegrity <= 0
   const isSecretActive = has_secret && bitIntegrity >= 80
   
-  // Destructure the 'unlock' function and 'isUnlocked' state
   const { isUnlocked, unlock } = useSecretGate(id, isSecretActive, isHovered)
   
   const integrityBg = isDead ? "bg-red-500" : bitIntegrity < 50 ? "bg-amber-400" : "bg-[#00FF41]"
   const latestComments = localComments.filter(c => !c.parent_id).slice(-2);
 
+  // --- FETCH AVATARS ---
+  useEffect(() => {
+    const getData = async () => {
+        // 1. Get Current User (for Comment Box)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user?.user_metadata?.avatar_url) {
+            setCurrentUserAvatar(user.user_metadata.avatar_url)
+        }
+
+        // 2. Get Post Author (for Header)
+        // We assume the 'username' prop matches the database username
+        const { data: authorData } = await supabase
+            .from('users')
+            .select('raw_user_meta_data')
+            .eq('username', username)
+            .single()
+        
+        // Extract avatar from metadata json
+        if (authorData?.raw_user_meta_data?.avatar_url) {
+            setAuthorAvatar(authorData.raw_user_meta_data.avatar_url)
+        }
+    }
+    getData()
+  }, [username, supabase])
+
   const checkAuth = async () => {
-    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
         router.push("/login")
@@ -117,12 +147,10 @@ export default function FeedCard({
     setTimeout(() => setIsCorrupting(false), 1000)
   }
 
-  // --- TOUCH HANDLERS (Mobile Decrypt) ---
+  // --- TOUCH HANDLERS ---
   const handleTouchStart = () => {
     if (!isSecretActive || isUnlocked) return
     setIsPressing(true)
-    
-    // Trigger unlock after 1.5 seconds of holding
     pressTimer.current = setTimeout(() => {
         unlock()
         setIsPressing(false)
@@ -147,23 +175,33 @@ export default function FeedCard({
       {/* HEADER */}
       <div className="px-4 py-3 flex items-center justify-between relative z-10 border-b border-white/5 bg-white/5">
           <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00FF41]/20 to-purple-500/20 border border-white/10 p-[2px]">
-                <div className="w-full h-full rounded-full bg-black/50"></div>
+              {/* --- POST AUTHOR AVATAR --- */}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00FF41]/20 to-purple-500/20 border border-white/10 p-[2px] relative overflow-hidden">
+                <div className="w-full h-full rounded-full bg-black/50 overflow-hidden relative">
+                    {authorAvatar ? (
+                        <Image 
+                            src={authorAvatar} 
+                            alt={username} 
+                            fill 
+                            className="object-cover" 
+                            unoptimized={true} // Bypass Vercel
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-white/5">
+                            <UserIcon size={14} className="text-white/50" />
+                        </div>
+                    )}
+                </div>
               </div>
               
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white tracking-wide">@{username}</span>
-                
-                {/* LOCKED STATE */}
                 {isSecretActive && !isUnlocked && (
                     <div className="flex items-center gap-1">
                         <Lock size={12} className="text-[#00FF41] drop-shadow-[0_0_5px_#00FF41]" />
-                        {/* Only show text instruction on Desktop */}
                         <span className="text-[9px] text-[#00FF41]/70 font-mono hidden md:inline">TYPE 'OPEN'</span>
                     </div>
                 )}
-                
-                {/* UNLOCKED STATE */}
                 {isUnlocked && (
                     <div className="flex items-center gap-1">
                         <Unlock size={12} className="text-red-500 drop-shadow-[0_0_5px_red]" />
@@ -177,25 +215,23 @@ export default function FeedCard({
       {/* IMAGE CONTAINER */}
       <div 
         className="relative w-full aspect-square bg-black/50 z-10 overflow-hidden"
-        // --- TOUCH EVENTS ---
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
-        onContextMenu={(e) => e.preventDefault()} // Block right-click menu
+        onContextMenu={(e) => e.preventDefault()}
       >
         <Image 
           src={image} 
           alt={username} 
           fill 
           sizes="(max-width: 768px) 100vw, 600px"
-          unoptimized={true} // Vercel Optimization Bypass
+          unoptimized={true} 
           className={`object-cover transition-all duration-700 
             ${isDead ? 'grayscale contrast-150 brightness-75 sepia-[.3]' : 'group-hover:scale-[1.02]'}
             ${isPressing ? 'scale-95 brightness-150 hue-rotate-90' : ''} 
           `}
         />
 
-        {/* --- MOBILE HINT (Only visible on mobile if locked) --- */}
         {isSecretActive && !isUnlocked && !isPressing && (
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none md:hidden opacity-60 flex flex-col items-center">
                  <Fingerprint size={48} className="text-white animate-pulse mb-2" />
@@ -203,7 +239,6 @@ export default function FeedCard({
              </div>
         )}
 
-        {/* --- DECRYPTING ANIMATION (While Holding) --- */}
         <AnimatePresence>
             {isPressing && !isUnlocked && (
                 <motion.div 
@@ -227,7 +262,6 @@ export default function FeedCard({
             )}
         </AnimatePresence>
 
-        {/* --- SUCCESS OVERLAY --- */}
         {isUnlocked && (
              <motion.div 
                 initial={{ opacity: 0 }} 
@@ -253,29 +287,16 @@ export default function FeedCard({
       <div className="p-4 relative z-10 bg-black/20">
          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-4">
-                
                 {!isDead && (
-                <button 
-                  onClick={handleHeal} 
-                  disabled={isHealing || userCredits < 10} 
-                  className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isHealing ? 'animate-pulse text-[#00FF41]' : ''}`}
-                  title="-10 Credits to Heal"
-                >
+                <button onClick={handleHeal} disabled={isHealing || userCredits < 10} className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isHealing ? 'animate-pulse text-[#00FF41]' : ''}`}>
                     <Wrench size={22} className={isHealing ? 'scale-110' : ''} />
                 </button>
                 )}
-
                 {!isDead && (
-                <button 
-                  onClick={handleCorrupt} 
-                  disabled={isCorrupting || userCredits < 10} 
-                  className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isCorrupting ? 'animate-shake text-red-500' : ''}`}
-                  title="-10 Credits to Corrupt"
-                >
+                <button onClick={handleCorrupt} disabled={isCorrupting || userCredits < 10} className={`group/btn relative flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 disabled:opacity-30 ${isCorrupting ? 'animate-shake text-red-500' : ''}`}>
                     <Hammer size={22} className={isCorrupting ? 'scale-110' : ''} />
                 </button>
                 )}
-
                 <button onClick={() => setShowComments(!showComments)} className="text-white/70 hover:text-white transition-colors -mt-0.5">
                    <MessageCircle size={24} />
                 </button>
@@ -312,8 +333,23 @@ export default function FeedCard({
             ))}
          </div>
 
+         {/* --- COMMENT INPUT TRIGGER (Current User Avatar) --- */}
          <div onClick={() => setShowComments(true)} className="flex items-center gap-3 pt-4 border-t border-white/10 cursor-pointer group/input">
-             <div className="w-7 h-7 rounded-full bg-white/10 border border-white/5"></div>
+             <div className="w-7 h-7 rounded-full bg-white/10 border border-white/5 overflow-hidden relative">
+                {currentUserAvatar ? (
+                    <Image 
+                        src={currentUserAvatar} 
+                        alt="Me" 
+                        fill 
+                        className="object-cover" 
+                        unoptimized={true}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <UserIcon size={12} className="text-white/50" />
+                    </div>
+                )}
+             </div>
              <div className="flex-1 text-white/30 text-sm group-hover/input:text-white/50 transition-colors">Add a comment...</div>
              <Send size={16} className="text-white/30 group-hover/input:text-[#00FF41] transition-colors" />
          </div>
