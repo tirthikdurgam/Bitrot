@@ -214,7 +214,7 @@ async def upload_image(
             "status": "active",
             "generations": 0,
             "witnesses": 0,
-            "last_viewed_timestamp": datetime.utcnow().isoformat()
+            "last_viewed": datetime.utcnow().isoformat()
         }
         
         print(f"Creating image record for user: {author_username}...")
@@ -278,7 +278,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
             # --- DECAY CALCULATION ---
             try:
                 # Use last_viewed_timestamp to calculate how long since the last decay
-                last_update_str = row.get('last_viewed_timestamp')
+                last_update_str = row.get('last_viewed')
                 if last_update_str:
                     last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp()
                 else:
@@ -332,7 +332,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "id": row['id'],
                     "bit_integrity": new_integrity,
                     "current_quality": new_integrity, 
-                    "last_viewed_timestamp": datetime.utcnow().isoformat(),
+                    "last_viewed": datetime.utcnow().isoformat(),
                     "witnesses": (row.get('witnesses') or 0) + 1,
                     "status": "decayed" if new_integrity <= 0 else "active",
                     "is_archived": True if new_integrity <= 0 else False,
@@ -395,7 +395,7 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 "id": p['id'],
                 "bit_integrity": p.get('bit_integrity', 100.0),
                 "current_quality": p.get('bit_integrity', 100.0),
-                "last_viewed_timestamp": datetime.utcnow().isoformat(),
+                "last_viewed": datetime.utcnow().isoformat(),
                 "witnesses": p.get('witnesses', 0),
                 "status": "decayed" if p.get('bit_integrity', 100.0) <= 0 else "active",
                 "is_archived": True if p.get('bit_integrity', 100.0) <= 0 else False
@@ -461,7 +461,7 @@ def interact_with_post(request: Request, body: InteractRequest):
     db.supabase.table("images").update({
         "bit_integrity": new_integrity,
         "current_quality": new_integrity,
-        "last_viewed_timestamp": datetime.utcnow().isoformat() # Mapped
+        "last_viewed": datetime.utcnow().isoformat() # Mapped
     }).eq("id", body.post_id).execute()
 
     return {
