@@ -6,7 +6,7 @@ import random
 import shutil
 import time
 import uuid
-
+from pydantic import BaseModel
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,6 +95,11 @@ app.add_middleware(
 os.makedirs("static/images", exist_ok=True)
 app.mount("/images", StaticFiles(directory="static/images"), name="images")
 
+# --- DATA MODELS ---
+class InteractRequest(BaseModel):
+    post_id: str
+    action: str # "heal" or "corrupt"
+
 # --- HELPER: BACKGROUND DECAY TASK ---
 def process_remote_decay(storage_path: str, current_health: float):
     if not storage_path or not db.supabase:
@@ -123,7 +128,6 @@ def process_remote_decay(storage_path: str, current_health: float):
 def get_current_user(request: Request):
     auth_header = request.headers.get('Authorization')
     
-    # 1. Check if Header Exists
     if not auth_header or not auth_header.startswith("Bearer "):
         print("AUTH ERROR: Missing or Invalid Authorization Header")
         raise HTTPException(status_code=401, detail="Missing authentication token")
@@ -131,7 +135,6 @@ def get_current_user(request: Request):
     try:
         token = auth_header.split(" ")[1]
         
-        # 2. Verify with Supabase
         user_response = db.supabase.auth.get_user(token)
         
         if not user_response or not user_response.user:
@@ -139,7 +142,6 @@ def get_current_user(request: Request):
 
         user_id = user_response.user.id
         
-        # 3. Fetch Profile from Public Table
         profile_res = db.supabase.table("users").select("*").eq("id", user_id).execute()
         
         if profile_res.data and len(profile_res.data) > 0:
@@ -168,7 +170,6 @@ async def upload_image(
     if not db.supabase:
         raise HTTPException(status_code=503, detail="Database not connected")
 
-    # 1. Enforce Auth
     user = get_current_user(request)
     author_username = user['username']
 
@@ -239,7 +240,6 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
     results = []
 
     for post in posts:
-        # Determine viewer for decay calculation (passive viewing)
         viewer_name = "Anonymous"
         try:
             auth_header = request.headers.get('Authorization')
@@ -249,9 +249,24 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
         except:
             pass
 
+        # Calculate potential decay
+        old_integrity = post.get("bit_integrity", 100.0)
         updates = calculate_decay(post, killer_name=viewer_name)
-        
         new_integrity = updates["bit_integrity"]
+        
+        # --- CREDIT LOGIC ---
+        decay_amount = max(0, old_integrity - new_integrity)
+        earned_credits = int(decay_amount)
+
+        if new_integrity <= 0 and old_integrity > 0:
+            earned_credits += 100
+            print(f"KILL CONFIRMED: {viewer_name} destroyed image {post['id']}")
+
+        if earned_credits > 0 and viewer_name != "Anonymous":
+            db.update_credits(viewer_name, earned_credits)
+            db.update_score(viewer_name, earned_credits, kill=(new_integrity <= 0))
+        # --------------------
+
         new_generations = updates["generations"]
         
         try:
@@ -278,7 +293,6 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
 
         processed_comments = []
         try:
-            # 1. Fetch raw comments
             comment_query = db.supabase.table("comments")\
                 .select("*")\
                 .eq("post_id", post['id'])\
@@ -287,10 +301,8 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
             response = safe_db_execute(comment_query)
             raw_data = response.data if response.data else []
             
-            # 2. Extract unique usernames from comments
+            # Batch fetch avatars for comments
             comment_usernames = list(set(c.get('username') for c in raw_data if c.get('username')))
-            
-            # 3. Fetch avatars for these users efficiently (Batch Query)
             avatar_map = {}
             if comment_usernames:
                 user_res = db.supabase.table("users").select("username, avatar_url").in_("username", comment_usernames).execute()
@@ -298,13 +310,12 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
                     for u in user_res.data:
                         avatar_map[u['username']] = u.get('avatar_url')
 
-            # 4. Build response with avatars attached
             for c in raw_data:
                 uname = c.get('username', 'Anonymous')
                 processed_comments.append({
                     "id": str(c.get('id')),
                     "username": uname,
-                    "avatar_url": avatar_map.get(uname), # <--- AVATAR URL NOW INCLUDED
+                    "avatar_url": avatar_map.get(uname), 
                     "content": c.get('content', '[REDACTED]'),
                     "created_at": c.get('created_at'),
                     "parent_id": str(c.get('parent_id')) if c.get('parent_id') else None
@@ -331,6 +342,53 @@ def get_feed(request: Request, background_tasks: BackgroundTasks):
         })
         
     return results
+
+@app.post("/interact")
+def interact_with_post(request: Request, body: InteractRequest):
+    """
+    Spend credits to Heal (+5%) or Corrupt (-5%) an image.
+    Cost: 10 Credits.
+    """
+    user = get_current_user(request)
+    username = user['username']
+    COST = 10
+
+    if not db.supabase:
+        raise HTTPException(status_code=503, detail="DB Disconnected")
+
+    # 1. Deduct Credits
+    new_balance = db.update_credits(username, -COST)
+    if new_balance is None:
+        raise HTTPException(status_code=402, detail="Insufficient Credits")
+
+    # 2. Fetch Post
+    post_res = db.supabase.table("images").select("*").eq("id", body.post_id).execute()
+    if not post_res.data:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    post = post_res.data[0]
+    current_integrity = post.get("bit_integrity", 100.0)
+
+    # 3. Apply Effect
+    if body.action == "heal":
+        new_integrity = min(100.0, current_integrity + 5.0)
+    elif body.action == "corrupt":
+        new_integrity = max(0.0, current_integrity - 5.0)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    # 4. Save & Record
+    db.supabase.table("images").update({
+        "bit_integrity": new_integrity,
+        "current_quality": new_integrity # Sync both
+    }).eq("id", body.post_id).execute()
+
+    return {
+        "status": "success",
+        "new_integrity": new_integrity,
+        "remaining_credits": new_balance,
+        "action": body.action
+    }
 
 @app.get("/graveyard")
 def get_graveyard():
@@ -393,7 +451,6 @@ def get_trending():
 
 @app.post("/comment")
 async def post_comment(request: Request, body: dict):
-    # STRICT AUTH: Will throw 401 if user is not logged in
     user = get_current_user(request)
     
     if db.supabase:
@@ -403,8 +460,6 @@ async def post_comment(request: Request, body: dict):
             current_integrity = post_data.data[0].get('current_quality', 100.0)
         
         parent_id = body.get('parent_id')
-        
-        # Now guaranteed to be the REAL username
         db.add_comment(body['post_id'], user['username'], body['content'], current_integrity, parent_id)
         
     return {"status": "Comment recorded"}

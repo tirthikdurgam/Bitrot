@@ -24,12 +24,12 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   const [isUploading, setIsUploading] = useState(false)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const supabase = createClient()
 
   // AUTH GUARD
   useEffect(() => {
     if (isOpen) {
         const checkAuth = async () => {
-            const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) {
                 onClose()
@@ -38,7 +38,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         }
         checkAuth()
     }
-  }, [isOpen, onClose, router])
+  }, [isOpen, onClose, router, supabase])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -63,67 +63,66 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
 
     setIsUploading(true)
     
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-        router.push("/login")
-        return
-    }
-    
-    // FETCH REAL USERNAME FROM DB
-    let username = "Anonymous_Creator"
-    const { data: profile } = await supabase
-        .from('users')
-        .select('username')
-        .eq('id', user.id)
-        .single()
-
-    if (profile?.username) {
-        username = profile.username
-    } else {
-        username = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous_User"
-        username = username.replace(/\s+/g, '_')
-    }
-
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("author", username)
-    formData.append("caption", caption)
-    formData.append("user_id", user.id)
-    
-    if (secret.trim()) {
-        formData.append("secret", secret)
-    }
-
     try {
-      const res = await fetch("https://bitrot.onrender.com/upload", {
-        method: "POST",
-        body: formData,
-      })
-      
-      if (res.ok) {
-        setFile(null)
-        setPreview(null)
-        setCaption("")
-        setSecret("")
-        if (onUploadSuccess) onUploadSuccess()
-        onClose()
-      } else {
-        throw new Error("Upload failed")
-      }
-    } catch (error) {
-      console.error("Upload failed:", error)
-      alert("Transmission rejected.")
+        // 1. Get User & Session Token
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session?.user) {
+            router.push("/login")
+            return
+        }
+        
+        // 2. Prepare Form Data
+        const formData = new FormData()
+        formData.append("file", file)
+        
+        // Note: The backend now extracts the author from the TOKEN, 
+        // but we keep 'author' here just in case the backend expects the field to exist.
+        // We'll just pass a placeholder since the token is the source of truth.
+        formData.append("author", "secure_upload") 
+        formData.append("caption", caption)
+        
+        if (secret.trim()) {
+            formData.append("secret", secret)
+        }
+
+        // 3. Dynamic API URL
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+
+        // 4. Send Request WITH AUTH HEADER
+        const res = await fetch(`${API_URL}/upload`, {
+            method: "POST",
+            headers: {
+                // Do NOT set 'Content-Type': 'multipart/form-data' manually here.
+                // The browser sets it automatically with the correct boundary for FormData.
+                "Authorization": `Bearer ${session.access_token}`
+            },
+            body: formData,
+        })
+        
+        if (res.ok) {
+            setFile(null)
+            setPreview(null)
+            setCaption("")
+            setSecret("")
+            if (onUploadSuccess) onUploadSuccess()
+            onClose()
+        } else {
+            const errorData = await res.json()
+            throw new Error(errorData.detail || "Upload failed")
+        }
+    } catch (error: any) {
+        console.error("Upload failed:", error)
+        alert(`Transmission rejected: ${error.message}`)
     } finally {
-      setIsUploading(false)
+        setIsUploading(false)
     }
   }
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-8 font-inter">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-8 font-montserrat">
           
           <motion.div
             initial={{ opacity: 0 }}
@@ -138,9 +137,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: "spring", damping: 30, stiffness: 400 }}
-            // MOBILE OPTIMIZATION 1: 
-            // - flex-col (Mobile) -> flex-row (Desktop)
-            // - max-h-[90vh] + overflow-y-auto (Handles scrolling on small screens)
             className="relative w-full max-w-5xl bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[24px] md:rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row max-h-[90vh] overflow-y-auto md:overflow-visible"
           >
             
@@ -153,7 +149,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             </button>
 
             {/* LEFT PANEL: PREVIEW */}
-            {/* MOBILE OPTIMIZATION 2: h-64 on mobile (fixed height) -> h-auto on desktop */}
             <div className={`w-full md:w-5/12 h-64 md:h-auto border-b md:border-b-0 md:border-r border-white/10 relative flex flex-col ${scrollbarHiddenClass} bg-white/[0.02] shrink-0`}>
               {preview ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative w-full h-full flex flex-col items-center justify-center p-8">
@@ -219,7 +214,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             </div>
 
             {/* RIGHT PANEL: FORM */}
-            {/* MOBILE OPTIMIZATION 3: Adjusted padding p-6 (mobile) -> p-12 (desktop) */}
             <div className="w-full md:w-7/12 p-6 md:p-12 flex flex-col justify-center relative">
                <div className="mb-6 md:mb-10 relative z-10">
                    <h2 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tighter drop-shadow-lg">Create Artifact.</h2>

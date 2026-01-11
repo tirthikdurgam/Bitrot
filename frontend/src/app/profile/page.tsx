@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
-import { LogOut, User as UserIcon, Mail, Shield, Loader2, X, Grid, Fingerprint, AlertTriangle } from "lucide-react"
+import { LogOut, User as UserIcon, Mail, Shield, Loader2, X, Grid, Fingerprint, AlertTriangle, Wallet } from "lucide-react"
 import Link from "next/link"
 import { logout } from "../auth/logout/actions"
 import { motion, AnimatePresence } from "framer-motion"
@@ -14,7 +14,7 @@ const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null) // <--- NEW: Store DB Profile
+  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"identity" | "artifacts">("identity")
   
@@ -35,10 +35,10 @@ export default function ProfilePage() {
         if (session?.user) {
           setUser(session.user)
 
-          // --- FETCH CUSTOM USERNAME FROM DB ---
+          // --- FETCH CUSTOM USERNAME & CREDITS FROM DB ---
           const { data: userProfile } = await supabase
             .from('users')
-            .select('username')
+            .select('username, credits')
             .eq('id', session.user.id)
             .single()
           
@@ -65,8 +65,6 @@ export default function ProfilePage() {
             setLoadingArtifacts(true)
             
             // PRIORITIZE DB USERNAME
-            // If profile.username exists (e.g. "tirthik"), use it. 
-            // Otherwise fallback to full name logic.
             let targetUsername = profile?.username 
             
             if (!targetUsername) {
@@ -88,7 +86,7 @@ export default function ProfilePage() {
         }
         fetchArtifacts()
     }
-  }, [activeTab, user, profile, supabase]) // Added profile dependency
+  }, [activeTab, user, profile, supabase])
 
   const maskEmail = (email: string) => {
     if (!email) return "Unknown"
@@ -154,12 +152,20 @@ export default function ProfilePage() {
                     )}
                 </div>
                 
-                {/* --- UPDATED: Shows DB Username ('tirthik') or Fallback --- */}
+                {/* Username */}
                 <h1 className="text-xl font-bold text-white text-center font-montserrat tracking-wide">
                     @{profile?.username || user?.user_metadata?.full_name?.replace(/\s+/g, '_') || "Anonymous"}
                 </h1>
                 
-                <p className="text-[10px] text-[#0066FF] font-montserrat font-bold mt-2 tracking-[0.2em] uppercase border border-[#0066FF]/30 bg-[#0066FF]/10 px-3 py-1 rounded-full">
+                {/* --- CREDITS DISPLAY (Updated to Montserrat) --- */}
+                <div className="flex items-center gap-2 mt-3 px-4 py-1.5 bg-[#00FF41]/10 border border-[#00FF41]/30 rounded-full">
+                    <Wallet size={14} className="text-[#00FF41]" />
+                    <span className="text-[#00FF41] font-montserrat font-bold text-xs tracking-wider">
+                        {profile?.credits || 0} CREDS
+                    </span>
+                </div>
+                
+                <p className="text-[10px] text-white/40 font-montserrat font-medium mt-2 tracking-widest uppercase">
                     Identity Verified
                 </p>
             </div>
@@ -204,7 +210,8 @@ export default function ProfilePage() {
                                 </div>
                                 <div className="flex flex-col overflow-hidden">
                                     <span className="text-[9px] text-white/30 uppercase tracking-widest font-bold mb-0.5 font-montserrat">Signal Source</span>
-                                    <span className="text-sm text-white/90 font-inter truncate" title={user?.email}>
+                                    {/* Updated to use font-montserrat */}
+                                    <span className="text-sm text-white/90 font-montserrat truncate" title={user?.email}>
                                         {maskEmail(user?.email)}
                                     </span>
                                 </div>
@@ -216,7 +223,8 @@ export default function ProfilePage() {
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] text-white/30 uppercase tracking-widest font-bold mb-0.5 font-montserrat">Clearance Level</span>
-                                    <span className="text-sm text-white/90 font-inter">Standard Observer</span>
+                                    {/* Updated to use font-montserrat */}
+                                    <span className="text-sm text-white/90 font-montserrat">Standard Observer</span>
                                 </div>
                             </div>
                         </motion.div>
@@ -237,7 +245,6 @@ export default function ProfilePage() {
                                          <Loader2 className="animate-spin text-[#0066FF]" size={24} />
                                      </div>
                                 ) : artifacts.length > 0 ? (
-                                    // MOBILE GRID: 2 cols on mobile, 3 on desktop
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pb-2">
                                         {artifacts.map((art) => (
                                             <div 
@@ -253,7 +260,8 @@ export default function ProfilePage() {
                                                     priority={true} 
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
-                                                    <span className="text-[8px] font-mono text-red-500 uppercase tracking-widest">
+                                                    {/* Updated to use font-montserrat */}
+                                                    <span className="text-[8px] font-montserrat font-bold text-red-500 uppercase tracking-widest">
                                                         Decayed
                                                     </span>
                                                 </div>

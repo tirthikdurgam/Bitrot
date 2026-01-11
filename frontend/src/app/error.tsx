@@ -33,7 +33,7 @@ export default function Error() {
         {/* SUBTITLE */}
         <div className="space-y-4 mb-10">
             <h2 className="text-2xl md:text-3xl font-bold tracking-[0.2em] text-white uppercase">
-                <span className="text-red-500">///</span> SIGNAL_LOST
+                <span className="text-red-500">///</span> SIGNAL LOST
             </h2>
             <p className="text-white/50 max-w-md mx-auto font-medium">
                 The requested data segment has been lost to entropy or does not exist in this timeline.

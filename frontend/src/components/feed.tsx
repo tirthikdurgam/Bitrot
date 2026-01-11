@@ -10,26 +10,38 @@ const scrollbarHiddenClass = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:
 
 export default function Feed() {
   const [posts, setPosts] = useState<any[]>([])
+  const [userCredits, setUserCredits] = useState(0)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const supabase = createClient()
 
+  // --- DYNAMIC API URL ---
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://bitrot.onrender.com"
+
   const fetchFeed = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      // 1. Get Session & Token
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
       
-      let currentUserName = "Anonymous_Observer"
-      if (user) {
-         const fullName = user.user_metadata?.full_name || user.email?.split('@')[0] || "Anonymous"
-         currentUserName = fullName.replace(/\s+/g, '_')
+      // 2. Fetch User Credits (if logged in)
+      if (session?.user) {
+         const { data: userData } = await supabase
+            .from('users')
+            .select('credits')
+            .eq('id', session.user.id)
+            .single()
+         
+         if (userData) {
+             setUserCredits(userData.credits || 0)
+         }
       }
 
-      // 1. Fetch data from your backend
-      const res = await fetch("/api/feed", { 
+      // 3. Fetch Feed from Backend (With Auth Header)
+      const res = await fetch(`${API_URL}/feed`, { 
         cache: 'no-store',
         headers: {
-          'Pragma': 'no-cache',
-          'Cache-Control': 'no-cache',
-          'x-user-name': currentUserName
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '' // <--- CRITICAL FIX
         }
       })
       
@@ -37,19 +49,16 @@ export default function Feed() {
 
       const rawData = await res.json()
       
-      // 2. Define Base URLs
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://iqtidkshavbicaecmxtd.supabase.co" 
       const renderBackendUrl = "https://bitrot.onrender.com"
 
-      // 3. Robust URL Construction
+      // 4. Robust URL Construction
       const formattedData = rawData.map((row: any) => {
         let imageUrl = ""
 
         if (row.storage_path) {
-            // Case A: Image is in Supabase Storage
             imageUrl = `${supabaseUrl}/storage/v1/object/public/bitloss-images/${row.storage_path}`
         } else if (row.image) {
-            // Case B: Image is from Render Backend (Decayed)
             if (row.image.startsWith("http")) {
                 imageUrl = row.image
             } else {
@@ -61,7 +70,7 @@ export default function Feed() {
         return {
           id: row.id,
           username: row.username,
-          image: `${imageUrl}?t=${row.generations}`,
+          image: `${imageUrl}?t=${row.generations}`, // Cache busting
           bitIntegrity: row.bitIntegrity, 
           generations: row.generations,
           witnesses: row.witnesses,
@@ -81,18 +90,13 @@ export default function Feed() {
 
   useEffect(() => {
     fetchFeed()
-    // Poll every 4s for updates
     const interval = setInterval(fetchFeed, 4000)
     return () => clearInterval(interval)
   }, [])
 
-  // MOBILE OPTIMIZATION 1: Use w-full to span the entire phone screen width
   const containerClass = posts.length === 0 ? "w-full" : "w-full max-w-2xl mx-auto"
 
   return (
-    // MOBILE OPTIMIZATION 2: 
-    // - border-x-0 md:border-x: Removes side borders on mobile (0px) but adds them on desktop.
-    // - pb-20: Adds extra padding at the bottom so the last post isn't hidden by mobile nav bars.
     <div className={`flex-1 ${containerClass} border-x-0 md:border-x border-white/10 min-h-[calc(100vh-4rem)] ${scrollbarHiddenClass} flex flex-col transition-all duration-500 relative font-montserrat pb-20`}>
       
       {/* BACKGROUND */}
@@ -110,7 +114,6 @@ export default function Feed() {
                 <span>/// DECAY_RATE: NORMAL</span>
                 <span>/// NEW_ARTIFACTS_DETECTED</span>
                 <span>/// SYSTEM_MODE: OBSERVATION</span>
-                {/* Duplicate for infinite loop */}
                 <span>/// LIVE_FEED_CONNECTION: ACTIVE</span>
                 <span>/// DECAY_RATE: NORMAL</span>
                 <span>/// NEW_ARTIFACTS_DETECTED</span>
@@ -129,7 +132,6 @@ export default function Feed() {
              <EmptyFeedState />
            </motion.div>
       ) : (
-           // MOBILE OPTIMIZATION 3: px-0 on mobile (flush edges) -> px-6 on desktop (breathing room)
            <div className="px-0 md:px-6 pb-6 space-y-8 w-full relative z-10">
              {posts.map((post, index) => (
                <motion.div
@@ -138,7 +140,10 @@ export default function Feed() {
                  whileInView={{ opacity: 1, y: 0 }}
                  transition={{ delay: index * 0.05 }}
                >
-                 <FeedCard {...post} />
+                 <FeedCard 
+                    {...post} 
+                    userCredits={userCredits} 
+                 />
                </motion.div>
              ))}
            </div>

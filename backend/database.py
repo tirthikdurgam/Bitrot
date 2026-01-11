@@ -21,6 +21,44 @@ else:
         print(f"Database Connected (Admin Mode: {bool(service_key)})")
     except Exception as e:
         print(f"Database Connection Error: {e}")
+# --- CREDIT FUNCTIONS (NEW) ---
+
+def update_credits(username, amount):
+    """
+    Modifies user credits.
+    amount > 0: Earn credits (Decay reward)
+    amount < 0: Spend credits (Heal/Corrupt cost)
+    """
+    if not supabase: return None
+    try:
+        # 1. Get current credits
+        res = supabase.table("users").select("credits").eq("username", username).execute()
+        if not res.data: return None
+        
+        current_credits = res.data[0].get('credits', 0)
+        new_balance = current_credits + amount
+        
+        # Prevent negative balance logic is usually handled by caller, 
+        # but safe to check here for spending.
+        if new_balance < 0:
+            return None # Insufficient funds
+            
+        # 2. Update
+        update_res = supabase.table("users").update({"credits": new_balance}).eq("username", username).execute()
+        return new_balance
+    except Exception as e:
+        print(f"Error updating credits: {e}")
+        return None
+
+def get_credits(username):
+    if not supabase: return 0
+    try:
+        res = supabase.table("users").select("credits").eq("username", username).execute()
+        if res.data:
+            return res.data[0].get('credits', 0)
+        return 0
+    except:
+        return 0
 
 # --- USER FUNCTIONS ---
 
