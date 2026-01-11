@@ -242,34 +242,35 @@ async def upload_image(
 @app.get("/feed")
 async def get_feed(request: Request, background_tasks: BackgroundTasks):
     """
-    Main feed logic: Calculates decay, awards credits to viewers/authors, 
-    records destroyed artifacts, and returns formatted post data.
+    Main feed logic: Calculates decay, awards credits, increments kill counts,
+    and returns formatted post data using existing 'users' table columns.
     """
     if not db.supabase: return []
 
     try:
-        # 1. Identify the current viewer for credit rewards
+        # 1. Identify current viewer
         current_user = get_current_user(request)
         current_user_id = current_user['id'] if current_user else None
         
-        # 2. Fetch all image records from the database
+        # 2. Fetch image records
         response = db.supabase.table('images').select('*').order('created_at', desc=True).execute()
         posts = response.data
         
         updated_posts = []
+        db_updates = [] # List to store ONLY the rows that changed
+        
         total_viewer_credits = 0
-        artifacts_to_record = []
+        kills_this_session = 0 # Counter for multiple kills
         
         current_time = time.time()
 
         for row in posts:
-            # --- AUTHOR DATA (Mapped to uploader_id) ---
+            # --- AUTHOR DATA ---
             author_id = row.get('uploader_id')
             p_author_name = row.get('username', 'Unknown')
             p_author_av = None
             
             if author_id:
-                # Fetch author profile for the feed card
                 author_res = db.supabase.table('users').select('username, avatar_url').eq('id', author_id).single().execute()
                 if author_res.data:
                     p_author_name = author_res.data['username']
@@ -277,8 +278,8 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
 
             # --- DECAY CALCULATION ---
             try:
-                # Use your existing 'last_viewed' column for timing
                 last_update_str = row.get('last_viewed')
+                # Handle cases where last_viewed might be None
                 if last_update_str:
                     last_update = datetime.fromisoformat(last_update_str.replace('Z', '+00:00')).timestamp()
                 else:
@@ -287,71 +288,63 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 last_update = current_time
 
             time_diff = current_time - last_update
-            
-            # Algorithmic decay rate based on witnesses and generation depth
             decay_rate = 0.05 * (1 + (row.get('witnesses', 0) / 50)) * (1 + (row.get('generations', 0) / 20))
             decay_amount = decay_rate * time_diff
 
-            # --- UPDATE & REWARD LOGIC ---
-            earned_credits = 0
-            kill_bonus = False
-
-            # Use your existing 'is_destroyed' boolean to check state
+            # --- REWARD & KILL LOGIC ---
+            # Only process decay if the image is NOT destroyed yet
             if not row.get('is_destroyed', False):
                 old_integrity = row.get('bit_integrity', 100.0)
                 new_integrity = max(0.0, old_integrity - decay_amount)
                 
-                # Passive Viewer Reward: 1 Credit per 1% decay witnessed
                 if current_user_id:
                     credit_diff = int(old_integrity) - int(new_integrity)
                     if credit_diff > 0:
-                        earned_credits += credit_diff
+                        total_viewer_credits += credit_diff
 
-                # --- DEATH EVENT (Integrity reaches 0) ---
+                # --- DEATH EVENT ---
                 if new_integrity <= 0 and old_integrity > 0:
-                    # A. REWARD ORIGINAL AUTHOR (+100 Credits)
+                    # A. Reward Original Author (+100 credits)
                     if author_id:
                         try:
                             a_data = db.supabase.table('users').select('credits').eq('id', author_id).single().execute()
                             if a_data.data:
-                                new_a_bal = (a_data.data.get('credits', 0) or 0) + 100
-                                db.supabase.table('users').update({'credits': new_a_bal}).eq('id', author_id).execute()
-                                print(f"DEATH EVENT: Author {author_id} rewarded 100 credits.")
-                        except Exception as e:
-                            print(f"Author Reward Failure: {e}")
+                                current_auth_creds = a_data.data.get('credits', 0) or 0
+                                db.supabase.table('users').update({'credits': current_auth_creds + 100}).eq('id', author_id).execute()
+                        except: pass
 
-                    # B. REWARD KILLER (+100 Credits if viewer is not the author)
+                    # B. Reward Killer (+100 credits and increment session kill count)
                     if current_user_id:
                         if author_id and current_user_id != author_id:
-                            earned_credits += 100 
-                            print(f"DEATH EVENT: Viewer {current_user_id} earned Kill Bonus.")
-                        
-                        kill_bonus = True # Mark for artifact record regardless of bonus eligibility
+                            total_viewer_credits += 100 
+                            kills_this_session += 1 # Increment counter
 
-                # Internal dictionary update for this loop
+                # Update row data
                 row.update({
                     "bit_integrity": new_integrity,
                     "current_quality": new_integrity, 
                     "last_viewed": datetime.utcnow().isoformat(),
                     "witnesses": (row.get('witnesses') or 0) + 1,
-                    "is_archived": True if new_integrity <= 0 else False,
-                    "is_destroyed": True if new_integrity <= 0 else False
+                    "is_destroyed": True if new_integrity <= 0 else False,
+                    "is_archived": True if new_integrity <= 0 else False
                 })
                 
-                # Trigger physical file bitrot in the background
+                # Trigger physical file bitrot
                 if new_integrity < 100 and row.get("storage_path"):
                      background_tasks.add_task(process_remote_decay, row["storage_path"], new_integrity)
 
-                # Queue artifact record to link destroyed image to the viewer
-                if kill_bonus and current_user_id:
-                    artifacts_to_record.append({
-                        "user_id": current_user_id,
-                        "image_id": row['id'],
-                        "activity_type": "destroyed",
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                # Add to DB updates list (OPTIMIZATION: Only update rows we modified)
+                db_updates.append({
+                    "id": row['id'],
+                    "bit_integrity": new_integrity,
+                    "current_quality": new_integrity,
+                    "last_viewed": row['last_viewed'],
+                    "witnesses": row['witnesses'],
+                    "is_destroyed": row['is_destroyed'],
+                    "is_archived": row['is_archived']
+                })
 
-            # --- FETCH COMMENTS FOR THIS POST ---
+            # --- FETCH COMMENTS ---
             c_res = db.supabase.table('comments').select('*').eq('post_id', row['id']).order('created_at').execute()
             final_comments = []
             for c in c_res.data:
@@ -364,11 +357,10 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                     "created_at": c['created_at']
                 })
 
-            # Construct final URL for the image
+            # Construct formatted response object
             s_path = row.get('storage_path')
             img_url = f"{SUPABASE_URL}/storage/v1/object/public/bitloss-images/{s_path}" if s_path else ""
 
-            # Formatting the final response object for the frontend
             updated_posts.append({
                 "id": row['id'],
                 "username": p_author_name,
@@ -381,42 +373,29 @@ async def get_feed(request: Request, background_tasks: BackgroundTasks):
                 "has_secret": row.get("has_secret", False),
                 "comments": final_comments
             })
-            
-            total_viewer_credits += earned_credits
 
-        # --- BATCH DATABASE UPDATES ---
-        if updated_posts:
-            # Sync integrity and witness counts back to Supabase
-            upsert_data = [{
-                "id": p['id'],
-                "bit_integrity": p.get('bitIntegrity', 100.0),
-                "current_quality": p.get('bitIntegrity', 100.0),
-                "last_viewed": datetime.utcnow().isoformat(),
-                "witnesses": p.get('witnesses', 0),
-                "is_archived": True if p.get('bitIntegrity', 100.0) <= 0 else False,
-                "is_destroyed": True if p.get('bitIntegrity', 100.0) <= 0 else False
-            } for p in updated_posts]
-            
-            if upsert_data:
-                db.supabase.table('images').upsert(upsert_data).execute()
+        # --- DATABASE SYNC (Optimized) ---
+        if db_updates:
+            db.supabase.table('images').upsert(db_updates).execute()
 
-        # Finalize credits for the viewer
-        if current_user_id and total_viewer_credits > 0:
-            u_data = db.supabase.table('users').select('credits').eq('id', current_user_id).single().execute()
-            new_bal = (u_data.data.get('credits', 0) or 0) + total_viewer_credits
-            db.supabase.table('users').update({'credits': new_bal}).eq('id', current_user_id).execute()
-
-        # Insert artifact records for images destroyed during this session
-        if artifacts_to_record:
-            try:
-                db.supabase.table('user_artifacts').insert(artifacts_to_record).execute()
-            except Exception as e:
-                print(f"Artifact Logging Error: {e}")
+        # --- UPDATE USER PROFILE ---
+        if current_user_id and (total_viewer_credits > 0 or kills_this_session > 0):
+            u_data = db.supabase.table('users').select('credits, kills').eq('id', current_user_id).single().execute()
+            if u_data.data:
+                existing_creds = u_data.data.get('credits', 0) or 0
+                existing_kills = u_data.data.get('kills', 0) or 0
+                
+                update_payload = {
+                    'credits': existing_creds + total_viewer_credits,
+                    'kills': existing_kills + kills_this_session
+                }
+                
+                db.supabase.table('users').update(update_payload).eq('id', current_user_id).execute()
 
         return updated_posts
 
     except Exception as e:
-        print(f"Feed System Error: {e}")
+        print(f"Critical Feed System Error: {e}")
         return []
 
 @app.post("/interact")
