@@ -17,141 +17,134 @@ export default function Onboarding() {
     setLoading(true)
     setError('')
 
-    // Simple client-side validation
+    // 1. Client-side formatting
     const cleanUsername = username.toLowerCase().trim().replace(/\s+/g, '_')
+    
     if (cleanUsername.length < 3) {
-        setError("Username must be at least 3 characters")
+        setError("Username must be at least 3 characters.")
+        setLoading(false)
+        return
+    }
+
+    // 2. Prevent breaking the interceptor logic
+    if (cleanUsername.startsWith('user_')) {
+        setError("Callsigns cannot start with 'user_'. Choose a unique identity.")
         setLoading(false)
         return
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No authenticated user found')
+      // 3. Get the current authenticated user session
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) throw new Error('Authentication lost. Please log in again.')
 
+      // 4. UPDATE instead of UPSERT
       const { error: updateError } = await supabase
         .from('users')
-        .upsert({ 
-          id: user.id, 
-          username: cleanUsername,
-        })
+        .update({ username: cleanUsername })
+        .eq('id', user.id)
 
       if (updateError) {
-        if (updateError.code === '23505') throw new Error('Username is already taken.')
-        throw updateError
+        // Postgres Error Code 23505 = "Unique Violation"
+        if (updateError.code === '23505') {
+            throw new Error(`The callsign '${cleanUsername}' is already claimed.`)
+        }
+        throw new Error("Failed to initialize identity. Try again.")
       }
 
+      // 5. Success! Refresh the session and send them to the feed
       router.refresh()
       router.push('/')
 
     } catch (err: any) {
-      console.error(err)
-      setError(err.message || "Failed to set username")
+      console.error("Onboarding Error:", err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    // UPDATED: Added p-4 for safe edge spacing on mobile
-    <div className="relative flex min-h-screen items-center justify-center bg-[#050505] text-white font-montserrat overflow-hidden p-4">
+    <div className="min-h-screen bg-[#050505] text-white font-montserrat p-6 md:p-16 lg:p-24 selection:bg-[#0066FF] selection:text-white relative overflow-hidden z-0">
       
-      {/* 1. ATMOSPHERE BACKGROUND */}
-      <div className="absolute inset-0 opacity-[0.05] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] pointer-events-none" />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(0,0,255,0.06),rgba(0,100,255,0.02),rgba(0,0,255,0.06))] z-0 bg-[length:100%_2px,3px_100%] pointer-events-none opacity-20" />
+      {/* --- SUBTLE AMBIENT GLOWS (For the glass to interact with) --- */}
+      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#0066FF]/[0.03] rounded-full blur-[120px] pointer-events-none -z-10" />
+      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-purple-500/[0.02] rounded-full blur-[100px] pointer-events-none -z-10" />
 
-      {/* 2. MAIN CARD */}
-      <form 
-        onSubmit={handleSubmit} 
-        // UPDATED: Changed fixed w-96 to fluid w-full max-w-md
-        // UPDATED: Responsive padding p-6 (mobile) -> p-10 (desktop)
-        className="relative z-10 p-6 md:p-10 border border-white/10 bg-black/40 rounded-3xl shadow-[0_0_50px_rgba(0,102,255,0.15)] w-full max-w-md backdrop-blur-xl group"
-      >
-        {/* Animated Border Glow */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-[#0066FF] to-purple-600 rounded-3xl opacity-20 group-hover:opacity-40 transition duration-1000 blur-lg -z-10" />
-
-        <div className="mb-8 text-center">
-            {/* UPDATED: Responsive text size text-3xl -> text-4xl */}
-            <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white mb-2 glitch-text" data-text="IDENTIFY YOURSELF">
-                IDENTIFY YOURSELF
-            </h1>
-            <p className="text-white/60 text-sm font-medium tracking-wide">
-                Choose a unique callsign for the network.
-            </p>
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-8 mb-12 pt-12 md:pt-0 relative z-10">
+        <div className="max-w-3xl">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-6 uppercase drop-shadow-sm">
+            INITIALIZE <span className="text-[#0066FF]">IDENTITY</span>
+          </h1>
+          <p className="text-white/60 text-lg md:text-xl font-medium">
+            The network requires a unique callsign. <span className="bg-[#0066FF]/20 text-[#0066FF] px-2 py-0.5 rounded font-bold backdrop-blur-sm">Verification required.</span>
+          </p>
         </div>
         
-        <div className="space-y-6">
-            <div className="group/input">
-                <label className="text-xs font-bold text-[#0066FF] uppercase tracking-[0.2em] mb-2 block group-focus-within/input:text-white transition-colors">
-                    Username
-                </label>
-                <div className="relative">
-                    <input 
-                      type="text" 
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="e.g. Neo_phyte"
-                      className="w-full bg-white/5 border border-white/10 focus:border-[#0066FF] focus:bg-black/50 rounded-xl p-4 text-white placeholder:text-white/20 outline-none transition-all font-medium tracking-wider shadow-inner"
-                      required
-                    />
-                    {/* Decorative Corner */}
-                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-white/30 group-focus-within/input:border-[#0066FF] transition-colors" />
-                    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-white/30 group-focus-within/input:border-[#0066FF] transition-colors" />
-                </div>
+        {/* TECH STATS */}
+        <div className="hidden md:flex flex-col gap-3 text-xs font-bold text-white/40 mt-8 md:mt-0 tracking-widest shrink-0">
+          <div className="flex items-center gap-2"><span className="text-[#0066FF] animate-pulse">///</span> STATUS_CODE: 401_UNAUTHORIZED</div>
+          <div className="flex items-center gap-2"><span className="text-[#0066FF]">///</span> ENCRYPTION: ACTIVE</div>
+          <div className="flex items-center gap-2"><span className="text-[#0066FF]">///</span> UPLINK: SECURE</div>
+        </div>
+      </div>
+
+      {/* FORM SECTION (SMOKED GLASS CONTAINER) */}
+      <form onSubmit={handleSubmit} className="max-w-2xl relative z-10">
+        <div className="relative bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden group">
+          
+          {/* Subtle inner glass edge highlight */}
+          <div className="absolute inset-0 border border-white/5 rounded-2xl pointer-events-none mix-blend-overlay" />
+          
+          <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4 relative">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-white/60 flex items-center gap-2">
+               <span className="text-[#0066FF]">&gt;_</span> REGISTRATION_PROTOCOL
+            </h2>
+            <span className="text-[10px] text-[#0066FF] border border-[#0066FF]/30 bg-[#0066FF]/10 px-3 py-1 rounded tracking-widest shadow-[0_0_10px_rgba(0,102,255,0.2)]">
+              SYS_EXEC_MODE
+            </span>
+          </div>
+
+          <div className="space-y-6 relative">
+            <div>
+              <label className="text-xs font-bold text-white/50 uppercase tracking-[0.2em] mb-3 block">
+                Desired Callsign
+              </label>
+              <input 
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. trackingmilkdads"
+                className="w-full bg-white/5 backdrop-blur-md border border-white/10 focus:border-[#0066FF]/50 focus:bg-black/60 focus:shadow-[0_0_20px_rgba(0,102,255,0.1)] rounded-xl p-5 text-white placeholder:text-white/20 outline-none transition-all duration-300 font-medium tracking-wide shadow-inner"
+                required
+                disabled={loading}
+              />
             </div>
 
             {error && (
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                    {error}
-                </div>
+              <div className="p-4 bg-red-500/10 backdrop-blur-md border border-red-500/30 rounded-xl text-red-500 text-sm font-bold flex items-center gap-3 shadow-inner">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                {error}
+              </div>
             )}
             
             <button 
-                disabled={loading} 
-                className="w-full relative overflow-hidden bg-white text-black font-black uppercase tracking-[0.15em] p-5 rounded-xl hover:bg-[#0066FF] hover:text-white hover:scale-[1.02] active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-[#0066FF]/50"
+              disabled={loading} 
+              className="w-full relative overflow-hidden bg-[#0066FF] text-white font-black uppercase tracking-[0.2em] p-5 rounded-xl hover:bg-[#0052cc] active:scale-[0.99] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-4 shadow-[0_0_20px_rgba(0,102,255,0.3)] hover:shadow-[0_0_30px_rgba(0,102,255,0.5)]"
             >
               {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={20} /> 
-                    <span>Syncing...</span>
-                  </>
+                <>
+                  <Loader2 className="animate-spin" size={20} /> 
+                  <span>SYNCING_DATA...</span>
+                </>
               ) : (
-                  'INITIALIZE IDENTITY'
+                'CONFIRM_IDENTITY'
               )}
             </button>
+          </div>
         </div>
       </form>
-
-      {/* 3. GLITCH CSS STYLES */}
-      <style jsx>{`
-        .glitch-text { position: relative; }
-        .glitch-text::before, .glitch-text::after {
-          content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.8;
-        }
-        .glitch-text::before {
-          color: #0066FF; z-index: -1; animation: glitch-anim-1 3s infinite linear alternate-reverse;
-        }
-        .glitch-text::after {
-          color: #ff0055; z-index: -2; animation: glitch-anim-2 2s infinite linear alternate-reverse;
-        }
-        @keyframes glitch-anim-1 {
-          0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 0); }
-          20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 0); }
-          40% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, 0); }
-          60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, 0); }
-          80% { clip-path: inset(30% 0 20% 0); transform: translate(-2px, 0); }
-          100% { clip-path: inset(10% 0 60% 0); transform: translate(2px, 0); }
-        }
-        @keyframes glitch-anim-2 {
-          0% { clip-path: inset(10% 0 60% 0); transform: translate(2px, 0); }
-          20% { clip-path: inset(80% 0 5% 0); transform: translate(-2px, 0); }
-          40% { clip-path: inset(30% 0 20% 0); transform: translate(2px, 0); }
-          60% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, 0); }
-          80% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 0); }
-          100% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 0); }
-        }
-      `}</style>
     </div>
   )
 }

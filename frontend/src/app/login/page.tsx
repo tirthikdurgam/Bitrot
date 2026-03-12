@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
 import { Loader2, AlertCircle, Mail, X } from "lucide-react"
@@ -23,6 +23,18 @@ export default function LoginPage() {
   
   const router = useRouter()
   const supabase = createClient()
+
+  // --- WAKE UP ORIGINAL TAB LOGIC ---
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // If Supabase detects a login (e.g. from the other tab clicking the email link)
+      if (event === 'SIGNED_IN' && session) {
+        router.push('/') // Push them to the feed (where the Bouncer will catch them)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router, supabase])
 
   // 1. STRICT VALIDATION HELPER
   const validateEmail = (email: string) => {
@@ -51,11 +63,6 @@ export default function LoginPage() {
             options: {
                 // Ensure this points to your callback route
                 emailRedirectTo: `${window.location.origin}/auth/callback`,
-                // FIX: Send metadata explicitly for Email Logins to prevent trigger crash
-                data: {
-                    full_name: email.split('@')[0], // Use email prefix as name
-                    avatar_url: "", // Empty string instead of null
-                }
             },
         })
 

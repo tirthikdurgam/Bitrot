@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { createClient } from "@/utils/supabase/client"
+import { useRouter } from "next/navigation"
 import LoadingScreen from "@/components/loading-screen"
 import Navbar from "@/components/navbar"
 import Feed from "@/components/feed"
@@ -8,10 +10,29 @@ import Sidebar from "@/components/sidebar"
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true) // Default to true so it doesn't flash content
+  const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
-    // 1. CHECK LOCAL STORAGE ON MOUNT
-    const checkSession = () => {
+    const initializePage = async () => {
+      // 1. THE BOUNCER: Check auth and username first
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('username')
+          .eq('id', user.id)
+          .single()
+
+        // If they don't have a valid username, kick them to Onboarding immediately
+        if (!profile || !profile.username || profile.username.startsWith('user_')) {
+          router.push('/onboarding')
+          return // Stop execution here so the feed doesn't load
+        }
+      }
+
+      // 2. CHECK LOCAL STORAGE ON MOUNT (Only runs if they passed the Bouncer)
       const lastVisit = localStorage.getItem("bitloss_session_timestamp")
       const now = Date.now()
       
@@ -28,10 +49,10 @@ export default function Home() {
       }
     }
 
-    checkSession()
-  }, [])
+    initializePage()
+  }, [router, supabase])
 
-  // 2. FUNCTION TO CALL WHEN LOADING FINISHES
+  // 3. FUNCTION TO CALL WHEN LOADING FINISHES
   const handleLoadingComplete = () => {
     setIsLoading(false)
     // Save current time

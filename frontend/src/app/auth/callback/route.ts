@@ -34,10 +34,27 @@ export async function GET(request: Request) {
       }
     )
     
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    // We grab the `data` object here to get the user ID
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (!error) {
-      // Successful login -> Redirect to Feed (or the 'next' param)
+    if (!error && data?.user) {
+      
+      // --- THE INTERCEPTOR START ---
+      // Fetch the user's profile from the public.users table
+      const { data: profile } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', data.user.id)
+        .single()
+
+      // If they don't have a profile yet, or their username is the default "user_..."
+      // Send them to the onboarding screen to pick a name.
+      if (!profile || !profile.username || profile.username.startsWith('user_')) {
+        return NextResponse.redirect(`${origin}/onboarding`)
+      }
+      // --- THE INTERCEPTOR END ---
+
+      // Successful login & valid username -> Redirect to Feed (or the 'next' param)
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
