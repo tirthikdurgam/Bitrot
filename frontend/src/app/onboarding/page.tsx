@@ -52,9 +52,8 @@ export default function Onboarding() {
         throw new Error("Failed to initialize identity. Try again.")
       }
 
-      // 5. Success! Refresh the session and send them to the feed
-      router.refresh()
-      router.push('/')
+      // 5. Success! Hard redirect to clear Next.js cache and trigger middleware
+      window.location.href = '/'
 
     } catch (err: any) {
       console.error("Onboarding Error:", err)
