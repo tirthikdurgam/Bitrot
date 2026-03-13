@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   
-  // CHANGED: Default to '/' (Feed) so users land on the main app after login
+  // Default to '/' (Feed) so users land on the main app after login
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
@@ -26,8 +26,7 @@ export async function GET(request: Request) {
               )
             } catch {
               // The `setAll` method was called from a Server Component.
-              // This can be ignored if you have middleware refreshing
-              // user sessions.
+              // This can be ignored if you have middleware refreshing user sessions.
             }
           },
         },
@@ -35,6 +34,7 @@ export async function GET(request: Request) {
     )
     
     // We grab the `data` object here to get the user ID
+    // Note: This automatically handles Google, GitHub, Discord, etc!
     const { error, data } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error && data?.user) {
